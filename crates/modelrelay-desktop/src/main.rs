@@ -18,13 +18,13 @@ fn get_settings() -> AppSettings {
 }
 
 #[tauri::command]
-fn save_settings(settings: AppSettings) -> Result<(), String> {
+#[allow(clippy::needless_pass_by_value)] // Tauri commands require owned arguments
+fn save_settings(settings: AppSettings) {
     tracing::info!(
         backend_url = %settings.backend_url,
         relay_url = %settings.relay_url,
         "settings saved (stub)"
     );
-    Ok(())
 }
 
 fn main() {
@@ -59,13 +59,7 @@ fn main() {
                 .tooltip("ModelRelay - Disconnected")
                 .menu(&menu)
                 .on_menu_event(|app, event| match event.id().as_ref() {
-                    "show" => {
-                        if let Some(window) = app.get_webview_window("main") {
-                            let _ = window.show();
-                            let _ = window.set_focus();
-                        }
-                    }
-                    "settings" => {
+                    "show" | "settings" => {
                         if let Some(window) = app.get_webview_window("main") {
                             let _ = window.show();
                             let _ = window.set_focus();
