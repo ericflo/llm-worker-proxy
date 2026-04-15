@@ -1,10 +1,31 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use modelrelay_desktop::{AppSettings, AppStatus};
 use tauri::{
     Manager,
     menu::{MenuBuilder, MenuItemBuilder},
     tray::TrayIconBuilder,
 };
+
+#[tauri::command]
+fn get_status() -> AppStatus {
+    AppStatus::default()
+}
+
+#[tauri::command]
+fn get_settings() -> AppSettings {
+    AppSettings::default()
+}
+
+#[tauri::command]
+fn save_settings(settings: AppSettings) -> Result<(), String> {
+    tracing::info!(
+        backend_url = %settings.backend_url,
+        relay_url = %settings.relay_url,
+        "settings saved (stub)"
+    );
+    Ok(())
+}
 
 fn main() {
     tracing_subscriber::fmt()
@@ -18,9 +39,9 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .invoke_handler(tauri::generate_handler![
-            modelrelay_desktop::get_status,
-            modelrelay_desktop::get_settings,
-            modelrelay_desktop::save_settings,
+            get_status,
+            get_settings,
+            save_settings,
         ])
         .setup(|app| {
             let show = MenuItemBuilder::with_id("show", "Open Dashboard").build(app)?;

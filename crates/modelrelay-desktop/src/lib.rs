@@ -47,23 +47,3 @@ impl Default for AppStatus {
         }
     }
 }
-
-#[tauri::command]
-pub fn get_status() -> AppStatus {
-    AppStatus::default()
-}
-
-#[tauri::command]
-pub fn get_settings() -> AppSettings {
-    AppSettings::default()
-}
-
-#[tauri::command]
-pub fn save_settings(settings: AppSettings) -> Result<(), String> {
-    tracing::info!(
-        backend_url = %settings.backend_url,
-        relay_url = %settings.relay_url,
-        "settings saved (stub)"
-    );
-    Ok(())
-}
