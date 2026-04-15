@@ -681,7 +681,7 @@ fn dashboard_css() -> &'static str {
     \
     /* ── Quick Links ── */\
     .dash-links {\
-      display: grid; grid-template-columns: repeat(3, 1fr);\
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));\
       gap: 16px; margin-bottom: 32px;\
     }\
     .dash-link {\
@@ -1074,6 +1074,10 @@ fn subscriber_dashboard_html(
                <a href=\"/integrate\" class=\"card dash-link\">\
                  <h3>Integrate</h3>\
                  <p>Code snippets for your favorite tools</p>\
+               </a>\
+               <a href=\"https://github.com/ericflo/modelrelay/releases/latest\" target=\"_blank\" class=\"card dash-link\">\
+                 <h3>Desktop App</h3>\
+                 <p>Download the tray app for Windows, macOS, or Linux</p>\
                </a>\
                <a href=\"https://ericflo.github.io/modelrelay/\" target=\"_blank\" class=\"card dash-link\">\
                  <h3>Documentation</h3>\
