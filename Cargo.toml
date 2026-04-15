@@ -2,6 +2,7 @@
 members = [
     "crates/modelrelay-cloud",
     "crates/modelrelay-contract-tests",
+    "crates/modelrelay-desktop",
     "crates/modelrelay-protocol",
     "crates/modelrelay-server",
     "crates/modelrelay-web",
