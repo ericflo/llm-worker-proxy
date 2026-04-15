@@ -75,119 +75,92 @@ async fn landing_page_returns_200_with_html() {
 // ─── Health endpoint ───────────────────────────────────────────────────────
 
 #[tokio::test]
-async fn health_returns_json_with_expected_fields() {
+async fn health_returns_503_when_db_unavailable() {
     let (status, body) = get("/health").await;
-    assert_eq!(status, StatusCode::OK);
+    // db: None → should return 503
+    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
 
     let json: serde_json::Value = serde_json::from_str(&body).expect("health response is JSON");
-    assert_eq!(json["status"], "ok");
-    // db: None → db_connected should be false
+    assert_eq!(json["status"], "degraded");
     assert_eq!(json["db_connected"], false);
-    // stripe_key: None → stripe_configured should be false
     assert_eq!(json["stripe_configured"], false);
 }
 
 // ─── Pricing page ──────────────────────────────────────────────────────────
 
 #[tokio::test]
-async fn pricing_returns_200_with_html() {
+async fn pricing_returns_503_without_session_layer() {
     let (status, body) = get("/pricing").await;
-    // Without a session layer the handler may return 500 — the Session
-    // extractor requires a session layer to be installed.
+    // Without a session layer the session guard middleware returns a styled 503.
+    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
     assert!(
-        status == StatusCode::OK || status == StatusCode::INTERNAL_SERVER_ERROR,
-        "unexpected status: {status}"
+        body.contains("Service Temporarily Unavailable"),
+        "expected styled 503 page"
     );
-    if status == StatusCode::OK {
-        assert!(
-            body.contains('<') && body.len() > 50,
-            "expected HTML pricing page"
-        );
-    }
 }
 
 // ─── Auth pages ────────────────────────────────────────────────────────────
 
 #[tokio::test]
-async fn signup_page_returns_200() {
+async fn signup_page_returns_503_without_session_layer() {
     let (status, body) = get("/signup").await;
-    // Without a session layer the handler may panic or return 500 — the session
-    // extractor requires a session layer.  We accept either 200 (if the handler
-    // gracefully handles it) or 500 (expected without session layer).
+    // Without a session layer the session guard middleware returns a styled 503.
+    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
     assert!(
-        status == StatusCode::OK || status == StatusCode::INTERNAL_SERVER_ERROR,
-        "unexpected status: {status}"
+        body.contains("Service Temporarily Unavailable"),
+        "expected styled 503 page"
     );
-    if status == StatusCode::OK {
-        assert!(
-            body.contains("Sign Up") || body.contains("signup"),
-            "expected signup form"
-        );
-    }
 }
 
 #[tokio::test]
-async fn login_page_returns_200() {
+async fn login_page_returns_503_without_session_layer() {
     let (status, body) = get("/login").await;
+    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
     assert!(
-        status == StatusCode::OK || status == StatusCode::INTERNAL_SERVER_ERROR,
-        "unexpected status: {status}"
+        body.contains("Service Temporarily Unavailable"),
+        "expected styled 503 page"
     );
-    if status == StatusCode::OK {
-        assert!(
-            body.contains("Log In") || body.contains("login"),
-            "expected login form"
-        );
-    }
 }
 
 // ─── POST /signup without DB returns error ─────────────────────────────────
 
 #[tokio::test]
-async fn signup_submit_without_db_returns_error() {
+async fn signup_submit_without_session_returns_503() {
     let (status, body) = post(
         "/signup",
         "application/x-www-form-urlencoded",
         "email=test%40example.com&password=longpassword123",
     )
     .await;
-    // Without session layer → 500; with session layer but no DB → HTML error.
+    // Without session layer the session guard middleware returns 503.
+    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
     assert!(
-        status == StatusCode::OK
-            || status == StatusCode::INTERNAL_SERVER_ERROR
-            || status == StatusCode::UNPROCESSABLE_ENTITY,
-        "unexpected status: {status}"
+        body.contains("Service Temporarily Unavailable"),
+        "expected styled 503 page"
     );
-    if status == StatusCode::OK {
-        assert!(
-            body.contains("Database not available") || body.contains("Error"),
-            "expected DB-unavailable error message"
-        );
-    }
 }
 
 // ─── POST /login with no DB returns error ──────────────────────────────────
 
 #[tokio::test]
-async fn login_submit_without_db_returns_error() {
-    let (status, _body) = post(
+async fn login_submit_without_session_returns_503() {
+    let (status, body) = post(
         "/login",
         "application/x-www-form-urlencoded",
         "email=test%40example.com&password=wrongpassword",
     )
     .await;
+    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
     assert!(
-        status == StatusCode::OK
-            || status == StatusCode::INTERNAL_SERVER_ERROR
-            || status == StatusCode::UNPROCESSABLE_ENTITY,
-        "unexpected status: {status}"
+        body.contains("Service Temporarily Unavailable"),
+        "expected styled 503 page"
     );
 }
 
 // ─── GET /dashboard without session redirects to /login ────────────────────
 
 #[tokio::test]
-async fn dashboard_without_session_redirects_to_login() {
+async fn dashboard_without_session_returns_503() {
     let resp = app()
         .oneshot(
             Request::builder()
@@ -198,46 +171,21 @@ async fn dashboard_without_session_redirects_to_login() {
         .await
         .unwrap();
 
-    let status = resp.status();
-    // Without a session layer the extractor will fail (500), or with session
-    // layer it will redirect (303/307) to /login since there is no user_id.
-    assert!(
-        status == StatusCode::SEE_OTHER
-            || status == StatusCode::TEMPORARY_REDIRECT
-            || status == StatusCode::INTERNAL_SERVER_ERROR,
-        "expected redirect or 500, got: {status}"
-    );
-    if status == StatusCode::SEE_OTHER || status == StatusCode::TEMPORARY_REDIRECT {
-        let location = resp
-            .headers()
-            .get("location")
-            .and_then(|v| v.to_str().ok())
-            .unwrap_or("");
-        assert!(
-            location.contains("/login"),
-            "expected redirect to /login, got: {location}"
-        );
-    }
+    // Without a session layer the session guard middleware returns 503.
+    assert_eq!(resp.status(), StatusCode::SERVICE_UNAVAILABLE);
 }
 
 // ─── Checkout routes ──────────────────────────────────────────────────────
 
 #[tokio::test]
-async fn checkout_without_stripe_returns_billing_not_configured() {
-    // test_state() has stripe_key: None, so POST /checkout should return
-    // "Billing not configured" — unless the session extractor fails first (500).
+async fn checkout_without_session_returns_503() {
+    // Without a session layer the session guard middleware returns 503.
     let (status, body) = post("/checkout", "application/x-www-form-urlencoded", "").await;
+    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
     assert!(
-        status == StatusCode::OK || status == StatusCode::INTERNAL_SERVER_ERROR,
-        "unexpected status: {status}"
+        body.contains("Service Temporarily Unavailable"),
+        "expected styled 503 page"
     );
-    if status == StatusCode::OK {
-        assert!(
-            body.contains("Billing not configured"),
-            "expected 'Billing not configured' message, got: {}",
-            &body[..body.len().min(300)]
-        );
-    }
 }
 
 #[tokio::test]
@@ -251,21 +199,14 @@ async fn checkout_cancel_returns_200() {
 }
 
 #[tokio::test]
-async fn checkout_success_without_session_returns_200() {
-    // GET /checkout/success with no session_id query param.
-    // The handler always returns the success HTML regardless, though the
-    // session extractor may fail (500) without a session layer.
+async fn checkout_success_without_session_returns_503() {
+    // GET /checkout/success uses Session, so without session layer → 503.
     let (status, body) = get("/checkout/success").await;
+    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
     assert!(
-        status == StatusCode::OK || status == StatusCode::INTERNAL_SERVER_ERROR,
-        "unexpected status: {status}"
+        body.contains("Service Temporarily Unavailable"),
+        "expected styled 503 page"
     );
-    if status == StatusCode::OK {
-        assert!(
-            body.contains('<') && body.len() > 50,
-            "expected HTML success page"
-        );
-    }
 }
 
 // ─── SEO routes ───────────────────────────────────────────────────────────

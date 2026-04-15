@@ -3,10 +3,13 @@ use std::sync::Arc;
 use axum::extract::State;
 use axum::http::StatusCode;
 use axum::middleware;
-use axum::response::{Html, IntoResponse};
+use axum::response::{Html, IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use serde_json::{Value, json};
+
+use axum::extract::Request;
+use axum::middleware::Next;
 
 use crate::state::CloudState;
 
@@ -47,6 +50,7 @@ pub fn router(state: Arc<CloudState>) -> Router {
         .route("/favicon.ico", get(favicon_ico))
         .fallback(not_found)
         .layer(middleware::from_fn(csrf::csrf_middleware))
+        .layer(middleware::from_fn(session_guard))
         .with_state(state)
 }
 
@@ -104,7 +108,55 @@ async fn favicon_ico() -> impl IntoResponse {
     ([(axum::http::header::CONTENT_TYPE, "image/svg+xml")], svg)
 }
 
-async fn health(State(state): State<Arc<CloudState>>) -> Json<Value> {
+/// Routes that do not require a session.
+const SESSION_EXEMPT_ROUTES: &[&str] = &[
+    "/",
+    "/health",
+    "/robots.txt",
+    "/sitemap.xml",
+    "/favicon.ico",
+    "/checkout/cancel",
+];
+
+/// Middleware that returns a styled 503 page when a session-dependent route is
+/// hit but the `SessionManagerLayer` has not injected a `Session` into the
+/// request extensions (e.g. because the database is unreachable at startup).
+async fn session_guard(request: Request, next: Next) -> Response {
+    let path = request.uri().path().to_owned();
+
+    // Let exempt routes through without checking for a session.
+    let exempt = SESSION_EXEMPT_ROUTES.contains(&path.as_str())
+        || path.starts_with("/webhook/");
+
+    if !exempt {
+        let has_session = request
+            .extensions()
+            .get::<tower_sessions::Session>()
+            .is_some();
+
+        if !has_session {
+            let body = r#"<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;text-align:center;padding:2rem">
+<h1 style="font-size:3rem;font-weight:800;color:#fbbf24;line-height:1;margin:0">503</h1>
+<h2 style="font-size:1.5rem;font-weight:600;margin:1rem 0 .5rem">Service Temporarily Unavailable</h2>
+<p style="color:#8b949e;max-width:28rem;margin-bottom:2rem">We're experiencing a temporary issue connecting to our database. Please try again in a few moments.</p>
+<a href="/" style="display:inline-block;padding:.75rem 2rem;background:#7c3aed;color:#fff;text-decoration:none;border-radius:.5rem;font-weight:600;transition:background .2s">Back to Home</a>
+</div>"#;
+            return (
+                StatusCode::SERVICE_UNAVAILABLE,
+                Html(modelrelay_web::templates::page_shell(
+                    "Service Unavailable",
+                    body,
+                    false,
+                )),
+            )
+                .into_response();
+        }
+    }
+
+    next.run(request).await
+}
+
+async fn health(State(state): State<Arc<CloudState>>) -> (StatusCode, Json<Value>) {
     let db_ok = if let Some(ref pool) = state.db {
         sqlx::query_scalar::<_, i32>("SELECT 1")
             .fetch_one(pool)
@@ -114,9 +166,18 @@ async fn health(State(state): State<Arc<CloudState>>) -> Json<Value> {
         false
     };
 
-    Json(json!({
-        "status": "ok",
-        "db_connected": db_ok,
-        "stripe_configured": state.stripe_key.is_some(),
-    }))
+    let (status_code, status_text) = if db_ok {
+        (StatusCode::OK, "ok")
+    } else {
+        (StatusCode::SERVICE_UNAVAILABLE, "degraded")
+    };
+
+    (
+        status_code,
+        Json(json!({
+            "status": status_text,
+            "db_connected": db_ok,
+            "stripe_configured": state.stripe_key.is_some(),
+        })),
+    )
 }
