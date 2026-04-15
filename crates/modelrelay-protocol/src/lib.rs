@@ -18,6 +18,29 @@ use serde::{Deserialize, Serialize};
 /// Keys are header names (lowercase by convention) and values are header values.
 pub type HeaderMap = BTreeMap<String, String>;
 
+/// OpenRouter-compatible provider routing preferences.
+///
+/// Allows clients to influence which workers handle their request based on
+/// provider-level filtering, ordering, and fallback behavior.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProviderRouting {
+    /// Only route to workers whose provider matches one of these names.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub only: Option<Vec<String>>,
+    /// Never route to workers whose provider matches one of these names.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ignore: Option<Vec<String>>,
+    /// Preferred provider order (first match wins among otherwise-equal workers).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub order: Option<Vec<String>>,
+    /// Whether to fall back to non-listed providers when preferred ones are unavailable.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub allow_fallbacks: Option<bool>,
+    /// Sorting strategy for eligible workers (e.g. `"load"`, `"round_robin"`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sort: Option<String>,
+}
+
 /// Messages sent from the proxy server to a connected worker.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -69,6 +92,10 @@ pub struct RegisterMessage {
     /// Number of requests the worker is currently processing at connect time.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub current_load: Option<u32>,
+    /// API endpoint path prefixes this worker supports (e.g. `["/v1/chat", "/v1/messages"]`).
+    /// An empty list means the worker accepts any endpoint (legacy behavior).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub endpoint_prefixes: Vec<String>,
 }
 
 /// Server's acknowledgment of a successful worker registration.
@@ -84,6 +111,14 @@ pub struct RegisterAck {
     /// Protocol version the server will use for this connection.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub protocol_version: Option<String>,
+    /// Confirmed endpoint prefixes the server accepted from the worker.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub endpoint_prefixes: Vec<String>,
+}
+
+/// Default HTTP method for requests when not explicitly specified.
+fn default_method() -> String {
+    "POST".to_string()
 }
 
 /// An inference request dispatched from the server to a worker.
@@ -95,6 +130,9 @@ pub struct RequestMessage {
     pub model: String,
     /// The HTTP path the worker should forward to its local backend (e.g. `/v1/chat/completions`).
     pub endpoint_path: String,
+    /// The HTTP method to use when forwarding to the backend (defaults to POST).
+    #[serde(default = "default_method")]
+    pub method: String,
     /// Whether the client expects a streaming (SSE) response.
     pub is_streaming: bool,
     /// The raw JSON request body to forward to the local backend.
@@ -247,6 +285,7 @@ mod tests {
             models: vec!["gpt-oss-120b".to_string(), "llama-4".to_string()],
             warnings: vec!["duplicate model dropped".to_string()],
             protocol_version: Some("2026-04-bridge-v1".to_string()),
+            endpoint_prefixes: vec!["/v1/chat".to_string()],
         });
 
         let json = serde_json::to_string(&message).expect("serialize register ack");
@@ -267,6 +306,7 @@ mod tests {
             request_id: "req-42".to_string(),
             model: "gpt-oss-120b".to_string(),
             endpoint_path: "/v1/chat/completions".to_string(),
+            method: "POST".to_string(),
             is_streaming: true,
             body: r#"{"model":"gpt-oss-120b","stream":true}"#.to_string(),
             headers,
@@ -289,6 +329,7 @@ mod tests {
             max_concurrent: 2,
             protocol_version: Some("2026-04-bridge-v1".to_string()),
             current_load: Some(1),
+            endpoint_prefixes: vec!["/v1/chat".to_string(), "/v1/messages".to_string()],
         });
         let update = WorkerToServerMessage::ModelsUpdate(ModelsUpdateMessage {
             models: vec!["gpt-oss-120b".to_string(), "qwen3".to_string()],
