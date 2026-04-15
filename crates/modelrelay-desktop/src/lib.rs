@@ -29,21 +29,10 @@ impl Default for AppSettings {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct AppStatus {
     pub connected: bool,
     pub relay_url: String,
     pub active_requests: u32,
     pub models: Vec<String>,
-}
-
-impl Default for AppStatus {
-    fn default() -> Self {
-        Self {
-            connected: false,
-            relay_url: String::new(),
-            active_requests: 0,
-            models: Vec::new(),
-        }
-    }
 }
