@@ -6,15 +6,15 @@ use axum::{
     body::{Body, Bytes},
     extract::{Path, State},
     http::{
-        HeaderMap as AxumHeaderMap, HeaderName, HeaderValue, StatusCode,
+        HeaderMap as AxumHeaderMap, HeaderName, HeaderValue, Method, StatusCode,
         header::{CACHE_CONTROL, CONNECTION, CONTENT_LENGTH, CONTENT_TYPE, HOST},
     },
     response::{IntoResponse, Response},
-    routing::{delete, get, post},
+    routing::{delete, get},
 };
 use futures_util::stream;
 use modelrelay_protocol::admin_api::{AdminKeysResponse, CreateKeyRequest, CreateKeyResponse};
-use modelrelay_protocol::{HeaderMap, ResponseCompleteMessage};
+use modelrelay_protocol::{HeaderMap, ProviderRouting, ResponseCompleteMessage};
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 
@@ -90,12 +90,19 @@ impl ProxyHttpApp {
     }
 
     pub fn router(self) -> Router {
+        let state = HttpState {
+            core: self.core,
+            models_provider: self.models_provider,
+            provider_enabled: self.provider_enabled,
+            started_at: Instant::now(),
+            admin_token: self.admin_token,
+            require_api_keys: self.require_api_keys,
+            api_key_store: self.api_key_store,
+        };
+
         let router = Router::new()
             .route("/health", get(health_handler))
             .route("/v1/models", get(models_handler))
-            .route("/v1/chat/completions", post(chat_completions_handler))
-            .route("/v1/messages", post(messages_handler))
-            .route("/v1/responses", post(responses_handler))
             .route("/admin/workers", get(admin_workers_handler))
             .route("/admin/stats", get(admin_stats_handler))
             .route(
@@ -103,15 +110,8 @@ impl ProxyHttpApp {
                 get(admin_keys_handler).post(admin_keys_create_handler),
             )
             .route("/admin/keys/{id}", delete(admin_keys_revoke_handler))
-            .with_state(HttpState {
-                core: self.core,
-                models_provider: self.models_provider,
-                provider_enabled: self.provider_enabled,
-                started_at: Instant::now(),
-                admin_token: self.admin_token,
-                require_api_keys: self.require_api_keys,
-                api_key_store: self.api_key_store,
-            });
+            .fallback(wildcard_handler)
+            .with_state(state);
 
         match self.worker_socket_app {
             Some(worker_socket_app) => router.merge(worker_socket_app.router()),
@@ -166,11 +166,15 @@ struct ModelObject {
     owned_by: &'static str,
 }
 
+/// A minimal parse of the JSON body to extract model, stream, and optional provider routing.
 #[derive(Debug, Deserialize)]
-struct ChatCompletionsRequest {
-    model: String,
+struct ProxyRequestBody {
+    model: Option<String>,
     #[serde(default)]
     stream: bool,
+    /// OpenRouter-compatible provider routing preferences.
+    #[serde(default)]
+    provider: Option<ProviderRouting>,
 }
 
 async fn health_handler(State(state): State<HttpState>) -> Json<HealthResponse> {
@@ -379,55 +383,73 @@ async fn check_client_api_key(state: &HttpState, headers: &AxumHeaderMap) -> Res
     }
 }
 
-async fn chat_completions_handler(
+/// Catch-all handler that proxies any path/method to a worker.
+///
+/// Extracts the model from the JSON body's `model` field, or from the
+/// `X-Model` header. Provider routing can come from the body's `provider`
+/// field or the `X-Provider` header (as a provider name filter).
+async fn wildcard_handler(
     State(state): State<HttpState>,
+    method: Method,
+    axum::extract::OriginalUri(uri): axum::extract::OriginalUri,
     headers: AxumHeaderMap,
     body: String,
-) -> Response {
-    worker_backed_http_handler(state, headers, body, "/v1/chat/completions").await
-}
-
-async fn messages_handler(
-    State(state): State<HttpState>,
-    headers: AxumHeaderMap,
-    body: String,
-) -> Response {
-    worker_backed_http_handler(state, headers, body, "/v1/messages").await
-}
-
-async fn responses_handler(
-    State(state): State<HttpState>,
-    headers: AxumHeaderMap,
-    body: String,
-) -> Response {
-    worker_backed_http_handler(state, headers, body, "/v1/responses").await
-}
-
-async fn worker_backed_http_handler(
-    state: HttpState,
-    headers: AxumHeaderMap,
-    body: String,
-    endpoint_path: &'static str,
 ) -> Response {
     if let Err(response) = check_client_api_key(&state, &headers).await {
         return response;
     }
 
-    let Ok(request) = serde_json::from_str::<ChatCompletionsRequest>(&body) else {
-        return StatusCode::BAD_REQUEST.into_response();
-    };
-
     if !state.provider_enabled {
         return availability_failure_response(RequestFailureReason::ProviderDisabled);
     }
 
-    if request.stream {
+    let endpoint_path = uri.path().to_string();
+    let method_str = method.as_str().to_string();
+
+    // Try to extract model and streaming flag from JSON body.
+    let (model, is_streaming, provider_routing) =
+        if let Ok(parsed) = serde_json::from_str::<ProxyRequestBody>(&body) {
+            (parsed.model, parsed.stream, parsed.provider)
+        } else {
+            (None, false, None)
+        };
+
+    // Fall back to X-Model header if not in body.
+    let model = model.or_else(|| {
+        headers
+            .get("x-model")
+            .and_then(|v| v.to_str().ok())
+            .map(|s| s.to_string())
+    });
+
+    let Some(model) = model else {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"error": {"type": "invalid_request", "message": "model is required (in JSON body or X-Model header)"}})),
+        )
+            .into_response();
+    };
+
+    // Allow X-Provider header as a shorthand for provider.only routing.
+    let provider_routing = provider_routing.or_else(|| {
+        headers
+            .get("x-provider")
+            .and_then(|v| v.to_str().ok())
+            .map(|provider_name| ProviderRouting {
+                only: Some(vec![provider_name.to_string()]),
+                ..Default::default()
+            })
+    });
+
+    if is_streaming {
         return stream_worker_backed_http_response(
             state,
             headers,
-            request.model,
+            model,
             body,
             endpoint_path,
+            method_str,
+            provider_routing,
         )
         .await;
     }
@@ -436,10 +458,12 @@ async fn worker_backed_http_handler(
         let mut core = state.core.lock().await;
         match core.submit_http_response_request(
             &state.models_provider,
-            request.model,
-            endpoint_path,
+            model,
+            &endpoint_path,
+            &method_str,
             body,
             forwarded_request_headers(&headers),
+            provider_routing,
         ) {
             Ok(pending) => pending,
             Err(failure) => return availability_failure_response(failure.reason),
@@ -465,7 +489,9 @@ async fn stream_worker_backed_http_response(
     headers: AxumHeaderMap,
     model: String,
     body: String,
-    endpoint_path: &'static str,
+    endpoint_path: String,
+    method: String,
+    provider_routing: Option<ProviderRouting>,
 ) -> Response {
     if !state.provider_enabled {
         return availability_failure_response(RequestFailureReason::ProviderDisabled);
@@ -476,9 +502,11 @@ async fn stream_worker_backed_http_response(
         match core.submit_http_streaming_request(
             &state.models_provider,
             model,
-            endpoint_path,
+            &endpoint_path,
+            &method,
             body,
             forwarded_request_headers(&headers),
+            provider_routing,
         ) {
             Ok(pending) => pending,
             Err(failure) => return availability_failure_response(failure.reason),

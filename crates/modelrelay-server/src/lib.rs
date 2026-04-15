@@ -6,8 +6,8 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use std::time::{Duration, Instant};
 
 use modelrelay_protocol::{
-    HeaderMap, ModelsUpdateMessage, PongMessage, RegisterAck, RegisterMessage, RequestMessage,
-    ResponseCompleteMessage,
+    HeaderMap, ModelsUpdateMessage, PongMessage, ProviderRouting, RegisterAck, RegisterMessage,
+    RequestMessage, ResponseCompleteMessage,
 };
 use tokio::sync::{mpsc, oneshot};
 
@@ -68,6 +68,8 @@ impl ProxyServerCore {
         let warnings = registration_warnings(&register.worker_name, &sanitized_models);
         let current_load = register.current_load.unwrap_or(0) as usize;
 
+        let endpoint_prefixes = register.endpoint_prefixes;
+
         self.worker_order.push(worker_id.clone());
         self.workers.insert(
             worker_id.clone(),
@@ -75,6 +77,7 @@ impl ProxyServerCore {
                 provider,
                 worker_name: register.worker_name,
                 models: sanitized_models.clone(),
+                endpoint_prefixes: endpoint_prefixes.clone(),
                 max_concurrent: register.max_concurrent.max(1) as usize,
                 reported_load: current_load,
                 in_flight_requests: Vec::new(),
@@ -90,6 +93,7 @@ impl ProxyServerCore {
                 models: sanitized_models,
                 warnings,
                 protocol_version: register.protocol_version,
+                endpoint_prefixes,
             },
         }
     }
@@ -148,9 +152,11 @@ impl ProxyServerCore {
             provider,
             model,
             "/".to_string(),
+            "POST",
             false,
             String::new(),
             HeaderMap::new(),
+            None,
         )
     }
 
@@ -159,9 +165,11 @@ impl ProxyServerCore {
         provider: impl Into<String>,
         model: impl Into<String>,
         endpoint_path: impl Into<String>,
+        method: impl Into<String>,
         is_streaming: bool,
         body: impl Into<String>,
         headers: HeaderMap,
+        provider_routing: Option<ProviderRouting>,
     ) -> SubmissionOutcome {
         let request = RequestRecord {
             request_id: format!("request-{}", self.next_request_id),
@@ -170,10 +178,12 @@ impl ProxyServerCore {
             queued_at: Instant::now(),
             transport: RequestTransport {
                 endpoint_path: endpoint_path.into(),
+                method: method.into(),
                 is_streaming,
                 body: body.into(),
                 headers,
             },
+            provider_routing,
             requeue_count: 0,
         };
         self.next_request_id += 1;
@@ -184,7 +194,12 @@ impl ProxyServerCore {
             },
         );
 
-        if let Some(worker_id) = self.find_eligible_worker_id(&request.provider, &request.model) {
+        if let Some(worker_id) = self.find_eligible_worker_id(
+            &request.provider,
+            &request.model,
+            &request.transport.endpoint_path,
+            request.provider_routing.as_ref(),
+        ) {
             self.assign_to_worker(&worker_id, request.clone());
             return SubmissionOutcome::Dispatched(DispatchAssignment {
                 request_id: request.request_id,
@@ -262,12 +277,22 @@ impl ProxyServerCore {
         provider: impl Into<String>,
         model: impl Into<String>,
         endpoint_path: impl Into<String>,
+        method: impl Into<String>,
         body: impl Into<String>,
         headers: HeaderMap,
+        provider_routing: Option<ProviderRouting>,
     ) -> Result<PendingHttpResponse, RequestFailure> {
         let (response_tx, response_rx) = oneshot::channel();
-        let outcome =
-            self.submit_transport_request(provider, model, endpoint_path, false, body, headers);
+        let outcome = self.submit_transport_request(
+            provider,
+            model,
+            endpoint_path,
+            method,
+            false,
+            body,
+            headers,
+            provider_routing,
+        );
 
         let request_id = match outcome {
             SubmissionOutcome::Dispatched(DispatchAssignment { request_id, .. })
@@ -297,12 +322,22 @@ impl ProxyServerCore {
         provider: impl Into<String>,
         model: impl Into<String>,
         endpoint_path: impl Into<String>,
+        method: impl Into<String>,
         body: impl Into<String>,
         headers: HeaderMap,
+        provider_routing: Option<ProviderRouting>,
     ) -> Result<PendingStreamingHttpResponse, RequestFailure> {
         let (event_tx, event_rx) = mpsc::unbounded_channel();
-        let outcome =
-            self.submit_transport_request(provider, model, endpoint_path, true, body, headers);
+        let outcome = self.submit_transport_request(
+            provider,
+            model,
+            endpoint_path,
+            method,
+            true,
+            body,
+            headers,
+            provider_routing,
+        );
 
         let request_id = match outcome {
             SubmissionOutcome::Dispatched(DispatchAssignment { request_id, .. })
@@ -768,6 +803,7 @@ impl ProxyServerCore {
                     provider: worker.provider.clone(),
                     worker_name: worker.worker_name.clone(),
                     models: worker.models.clone(),
+                    endpoint_prefixes: worker.endpoint_prefixes.clone(),
                     max_concurrent: worker.max_concurrent,
                     reported_load: worker.reported_load,
                     in_flight_count: worker.in_flight_requests.len(),
@@ -926,14 +962,21 @@ impl ProxyServerCore {
     }
 
     fn dispatch_next_compatible(&mut self, worker_id: &str) -> Option<DispatchAssignment> {
-        let models = {
+        let (models, endpoint_prefixes) = {
             let worker = self.workers.get(worker_id)?;
-            worker.models.clone()
+            (worker.models.clone(), worker.endpoint_prefixes.clone())
         };
 
         if !self.worker_has_capacity(worker_id) {
             return None;
         }
+
+        let supports_endpoint = |path: &str| -> bool {
+            if endpoint_prefixes.is_empty() {
+                return true;
+            }
+            endpoint_prefixes.iter().any(|prefix| path.starts_with(prefix.as_str()))
+        };
 
         // Search all provider queues — not just the worker's own provider —
         // so requests dispatched under a different provider name still get served.
@@ -945,6 +988,7 @@ impl ProxyServerCore {
                 models
                     .iter()
                     .any(|model| model == "*" || model == &request.model)
+                    && supports_endpoint(&request.transport.endpoint_path)
             }) {
                 let queued_at = queue[idx].queued_at;
                 if best_queued_at.is_none_or(|best| queued_at < best) {
@@ -967,20 +1011,131 @@ impl ProxyServerCore {
         })
     }
 
-    fn find_eligible_worker_id(&mut self, provider: &str, model: &str) -> Option<String> {
+    fn find_eligible_worker_id(
+        &mut self,
+        provider: &str,
+        model: &str,
+        endpoint_path: &str,
+        provider_routing: Option<&ProviderRouting>,
+    ) -> Option<String> {
+        // Apply provider routing filters if present.
+        if let Some(routing) = provider_routing {
+            return self.find_eligible_worker_id_with_routing(
+                provider,
+                model,
+                endpoint_path,
+                routing,
+            );
+        }
         // Try exact provider match first, then fall back to any provider.
         // The fallback handles single-tenant hosted setups where the server's
         // configured provider name may not match the worker's.
-        if let Some(id) = self.find_eligible_worker_id_for_provider(Some(provider), model) {
+        if let Some(id) =
+            self.find_eligible_worker_id_for_provider(Some(provider), model, endpoint_path)
+        {
             return Some(id);
         }
-        self.find_eligible_worker_id_for_provider(None, model)
+        self.find_eligible_worker_id_for_provider(None, model, endpoint_path)
+    }
+
+    fn find_eligible_worker_id_with_routing(
+        &mut self,
+        provider: &str,
+        model: &str,
+        endpoint_path: &str,
+        routing: &ProviderRouting,
+    ) -> Option<String> {
+        // Collect eligible workers with routing filters applied.
+        let eligible_workers = self
+            .worker_order
+            .iter()
+            .enumerate()
+            .filter_map(|(position, worker_id)| {
+                let worker = self.workers.get(worker_id)?;
+                let supports_model = worker
+                    .models
+                    .iter()
+                    .any(|m| m == "*" || m == model);
+                let has_capacity = worker.selection_load() < worker.max_concurrent;
+                let supports_ep = worker.supports_endpoint(endpoint_path);
+
+                if !supports_model || !has_capacity || worker.is_draining || !supports_ep {
+                    return None;
+                }
+
+                // Apply only/ignore filters.
+                if let Some(only) = &routing.only {
+                    if !only.iter().any(|p| p == &worker.provider) {
+                        return None;
+                    }
+                }
+                if let Some(ignore) = &routing.ignore {
+                    if ignore.iter().any(|p| p == &worker.provider) {
+                        return None;
+                    }
+                }
+
+                Some((position, worker_id.clone(), worker.selection_load(), worker.provider.clone()))
+            })
+            .collect::<Vec<_>>();
+
+        if eligible_workers.is_empty() {
+            // If allow_fallbacks is true (or unset, defaulting to true), fall back
+            // to unfiltered selection.
+            if routing.allow_fallbacks.unwrap_or(true) {
+                if let Some(id) =
+                    self.find_eligible_worker_id_for_provider(Some(provider), model, endpoint_path)
+                {
+                    return Some(id);
+                }
+                return self.find_eligible_worker_id_for_provider(None, model, endpoint_path);
+            }
+            return None;
+        }
+
+        // Apply ordering preference if specified.
+        if let Some(order) = &routing.order {
+            // Find the first provider in the order list that has eligible workers.
+            for preferred in order {
+                let preferred_workers: Vec<_> = eligible_workers
+                    .iter()
+                    .filter(|(_, _, _, prov)| prov == preferred)
+                    .collect();
+                if let Some(best) = preferred_workers.iter().min_by_key(|(_, _, load, _)| *load) {
+                    let key = SelectionKey::new(preferred, model);
+                    self.selection_cursors.insert(key, best.0);
+                    return Some(best.1.clone());
+                }
+            }
+            // Fall through to load-based selection if no ordered provider matched.
+        }
+
+        // Default: lowest load, round-robin tiebreak.
+        let lowest_load = eligible_workers.iter().map(|(_, _, load, _)| *load).min()?;
+        let tied_workers: Vec<_> = eligible_workers
+            .into_iter()
+            .filter(|(_, _, load, _)| *load == lowest_load)
+            .collect();
+
+        let effective_provider = provider;
+        let key = SelectionKey::new(effective_provider, model);
+        let last_position = self.selection_cursors.get(&key).copied();
+
+        let (position, worker_id, _, _) = tied_workers
+            .iter()
+            .find(|(position, _, _, _)| last_position.is_none_or(|last| *position > last))
+            .or_else(|| tied_workers.first())?
+            .clone();
+
+        self.selection_cursors.insert(key, position);
+        Some(worker_id)
     }
 
     fn find_eligible_worker_id_for_provider(
         &mut self,
         provider_filter: Option<&str>,
         model: &str,
+        endpoint_path: &str,
     ) -> Option<String> {
         let eligible_workers = self
             .worker_order
@@ -996,8 +1151,14 @@ impl ProxyServerCore {
                 let has_capacity = selection_load < worker.max_concurrent;
                 let provider_matches =
                     provider_filter.is_none_or(|provider| worker.provider == provider);
+                let supports_ep = worker.supports_endpoint(endpoint_path);
 
-                if provider_matches && supports_exact_model && has_capacity && !worker.is_draining {
+                if provider_matches
+                    && supports_exact_model
+                    && has_capacity
+                    && !worker.is_draining
+                    && supports_ep
+                {
                     Some((position, worker_id.clone(), selection_load))
                 } else {
                     None
@@ -1104,6 +1265,8 @@ pub struct AdminWorkerInfo {
     pub provider: String,
     pub worker_name: String,
     pub models: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub endpoint_prefixes: Vec<String>,
     pub max_concurrent: usize,
     pub reported_load: usize,
     pub in_flight_count: usize,
@@ -1251,6 +1414,7 @@ struct WorkerState {
     provider: String,
     worker_name: String,
     models: Vec<String>,
+    endpoint_prefixes: Vec<String>,
     max_concurrent: usize,
     reported_load: usize,
     in_flight_requests: Vec<String>,
@@ -1262,6 +1426,17 @@ impl WorkerState {
     fn selection_load(&self) -> usize {
         self.reported_load.max(self.in_flight_requests.len())
     }
+
+    /// Returns true if this worker can handle requests to the given endpoint path.
+    /// An empty prefixes list means the worker accepts any endpoint (legacy behavior).
+    fn supports_endpoint(&self, path: &str) -> bool {
+        if self.endpoint_prefixes.is_empty() {
+            return true;
+        }
+        self.endpoint_prefixes
+            .iter()
+            .any(|prefix| path.starts_with(prefix.as_str()))
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1271,12 +1446,14 @@ struct RequestRecord {
     model: String,
     queued_at: Instant,
     transport: RequestTransport,
+    provider_routing: Option<ProviderRouting>,
     requeue_count: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct RequestTransport {
     endpoint_path: String,
+    method: String,
     is_streaming: bool,
     body: String,
     headers: HeaderMap,
@@ -1288,6 +1465,7 @@ impl RequestRecord {
             request_id: self.request_id.clone(),
             model: self.model.clone(),
             endpoint_path: self.transport.endpoint_path.clone(),
+            method: self.transport.method.clone(),
             is_streaming: self.transport.is_streaming,
             body: self.transport.body.clone(),
             headers: self.transport.headers.clone(),
