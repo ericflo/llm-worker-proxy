@@ -20,6 +20,7 @@ struct FileConfig {
     max_concurrency: Option<u32>,
     backend_url: Option<String>,
     log_level: Option<String>,
+    endpoint_prefixes: Option<Vec<String>>,
 }
 
 /// Remote LLM worker daemon.
@@ -70,6 +71,11 @@ struct Args {
     #[arg(long, env = "LOG_LEVEL")]
     log_level: Option<String>,
 
+    /// Comma-separated list of endpoint path prefixes this worker supports
+    /// (e.g. `/v1/chat,/v1/messages`). Empty means accept any endpoint.
+    #[arg(long, env = "ENDPOINT_PREFIXES")]
+    endpoint_prefixes: Option<String>,
+
     /// Generate shell completion script for the given shell and exit
     #[arg(long, value_name = "SHELL", hide = true)]
     completions: Option<Shell>,
@@ -83,6 +89,7 @@ fn load_config_file(path: &PathBuf) -> Result<FileConfig, String> {
 }
 
 #[tokio::main]
+#[allow(clippy::too_many_lines)]
 async fn main() {
     let args = Args::parse();
 
@@ -145,6 +152,16 @@ async fn main() {
         .backend_url
         .or(file_cfg.backend_url)
         .unwrap_or_else(|| "http://127.0.0.1:8000".to_string());
+    let endpoint_prefixes: Vec<String> = if let Some(ref s) = args.endpoint_prefixes {
+        s.split(',')
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect()
+    } else if let Some(ref v) = file_cfg.endpoint_prefixes {
+        v.clone()
+    } else {
+        vec![]
+    };
     let log_level = args
         .log_level
         .or(file_cfg.log_level)
@@ -164,6 +181,7 @@ async fn main() {
         models: models.clone(),
         max_concurrent: max_concurrency,
         backend_base_url: backend_url.clone(),
+        endpoint_prefixes: endpoint_prefixes.clone(),
     };
 
     // If configured with wildcard models, discover actual models from backend.

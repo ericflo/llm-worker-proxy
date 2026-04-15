@@ -44,6 +44,9 @@ pub struct WorkerDaemonConfig {
     pub models: Vec<String>,
     pub max_concurrent: u32,
     pub backend_base_url: String,
+    /// API endpoint path prefixes this worker supports (e.g. `["/v1/chat", "/v1/messages"]`).
+    /// An empty list means the worker accepts any endpoint (legacy behavior).
+    pub endpoint_prefixes: Vec<String>,
 }
 
 impl WorkerDaemonConfig {
@@ -150,6 +153,7 @@ impl WorkerDaemon {
                 max_concurrent: self.config.max_concurrent,
                 protocol_version: Some("2026-04-bridge-v1".to_string()),
                 current_load: Some(0),
+                endpoint_prefixes: self.config.endpoint_prefixes.clone(),
             }),
         )
         .await?;
@@ -413,6 +417,7 @@ async fn forward_request(
     let RequestMessage {
         request_id,
         endpoint_path,
+        method,
         is_streaming,
         body,
         headers,
@@ -433,8 +438,19 @@ async fn forward_request(
         backend_headers.insert(header_name, header_value);
     }
 
+    let url = config.backend_url(&endpoint_path);
+    let reqwest_method = match method.to_uppercase().as_str() {
+        "GET" => reqwest::Method::GET,
+        "PUT" => reqwest::Method::PUT,
+        "DELETE" => reqwest::Method::DELETE,
+        "PATCH" => reqwest::Method::PATCH,
+        "HEAD" => reqwest::Method::HEAD,
+        "OPTIONS" => reqwest::Method::OPTIONS,
+        _ => reqwest::Method::POST,
+    };
+
     let response = client
-        .post(config.backend_url(&endpoint_path))
+        .request(reqwest_method, &url)
         .headers(backend_headers)
         .body(body)
         .send()
@@ -531,6 +547,7 @@ mod tests {
             models: vec!["model-a".to_string()],
             max_concurrent: 4,
             backend_base_url: backend_base_url.to_string(),
+            endpoint_prefixes: vec![],
         }
     }
 

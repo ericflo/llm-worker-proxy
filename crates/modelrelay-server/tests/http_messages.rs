@@ -85,6 +85,7 @@ async fn register_test_worker(socket: &mut TestSocket) {
         max_concurrent: 1,
         protocol_version: Some("2026-04-bridge-v1".to_string()),
         current_load: Some(0),
+        endpoint_prefixes: vec![],
     });
     let register_payload = serde_json::to_string(&register).expect("serialize register");
 

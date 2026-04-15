@@ -591,6 +591,7 @@ async fn worker_daemon_forwards_non_streaming_openai_request_through_live_proxy(
         models: vec!["gpt-4.1-mini".to_string()],
         max_concurrent: 1,
         backend_base_url: format!("http://{backend_addr}"),
+        endpoint_prefixes: vec![],
     });
 
     let daemon_handle = tokio::spawn(async move { daemon.run().await });
@@ -672,6 +673,7 @@ async fn worker_daemon_preserves_non_2xx_openai_backend_response_through_live_pr
         models: vec!["gpt-4.1-mini".to_string()],
         max_concurrent: 1,
         backend_base_url: format!("http://{backend_addr}"),
+        endpoint_prefixes: vec![],
     });
 
     let daemon_handle = tokio::spawn(async move { daemon.run().await });
@@ -734,6 +736,7 @@ async fn worker_daemon_forwards_streaming_openai_request_through_live_proxy() {
         models: vec!["gpt-4.1-mini".to_string()],
         max_concurrent: 1,
         backend_base_url: format!("http://{backend_addr}"),
+        endpoint_prefixes: vec![],
     });
 
     let daemon_handle = tokio::spawn(async move { daemon.run().await });
@@ -817,6 +820,7 @@ async fn worker_daemon_forwards_anthropic_messages_request_through_live_proxy() 
         models: vec!["claude-3-5-sonnet-20241022".to_string()],
         max_concurrent: 1,
         backend_base_url: format!("http://{backend_addr}"),
+        endpoint_prefixes: vec![],
     });
 
     let daemon_handle = tokio::spawn(async move { daemon.run().await });
@@ -877,6 +881,7 @@ async fn worker_daemon_forwards_anthropic_streaming_request_through_live_proxy()
         models: vec!["claude-3-5-sonnet-20241022".to_string()],
         max_concurrent: 1,
         backend_base_url: format!("http://{backend_addr}"),
+        endpoint_prefixes: vec![],
     });
 
     let daemon_handle = tokio::spawn(async move { daemon.run().await });
@@ -972,6 +977,7 @@ async fn worker_daemon_requeues_live_request_after_first_daemon_disconnect() {
         models: vec!["gpt-4.1-mini".to_string()],
         max_concurrent: 1,
         backend_base_url: format!("http://{first_backend_addr}"),
+        endpoint_prefixes: vec![],
     });
     let first_daemon_handle = tokio::spawn(async move { first_daemon.run().await });
 
@@ -1022,6 +1028,7 @@ async fn worker_daemon_requeues_live_request_after_first_daemon_disconnect() {
         models: vec!["gpt-4.1-mini".to_string()],
         max_concurrent: 1,
         backend_base_url: format!("http://{replacement_backend_addr}"),
+        endpoint_prefixes: vec![],
     });
     let replacement_daemon_handle = tokio::spawn(async move { replacement_daemon.run().await });
 
@@ -1114,6 +1121,7 @@ async fn two_worker_daemons_receive_concurrent_requests_via_load_balanced_routin
         models: vec!["gpt-4.1-mini".to_string()],
         max_concurrent: 1,
         backend_base_url: format!("http://{backend_a_addr}"),
+        endpoint_prefixes: vec![],
     });
     let daemon_a_handle = tokio::spawn(async move { daemon_a.run().await });
 
@@ -1125,6 +1133,7 @@ async fn two_worker_daemons_receive_concurrent_requests_via_load_balanced_routin
         models: vec!["gpt-4.1-mini".to_string()],
         max_concurrent: 1,
         backend_base_url: format!("http://{backend_b_addr}"),
+        endpoint_prefixes: vec![],
     });
     let daemon_b_handle = tokio::spawn(async move { daemon_b.run().await });
 
@@ -1250,6 +1259,7 @@ async fn worker_daemon_reports_live_in_flight_load_in_heartbeat_pongs() {
         models: vec!["gpt-4.1-mini".to_string()],
         max_concurrent: 1,
         backend_base_url: format!("http://{backend_addr}"),
+        endpoint_prefixes: vec![],
     });
     let daemon_handle = tokio::spawn(async move { daemon.run().await });
 
@@ -1442,6 +1452,7 @@ async fn worker_daemon_cancels_backend_request_when_http_client_disconnects() {
         models: vec!["gpt-4.1-mini".to_string()],
         max_concurrent: 1,
         backend_base_url: format!("http://{backend_addr}"),
+        endpoint_prefixes: vec![],
     });
     let daemon_handle = tokio::spawn(async move { daemon.run().await });
 
@@ -1500,6 +1511,7 @@ async fn worker_daemon_run_with_reconnect_reconnects_after_proxy_graceful_shutdo
         models: vec!["gpt-4.1-mini".to_string()],
         max_concurrent: 1,
         backend_base_url: format!("http://{backend_addr}"),
+        endpoint_prefixes: vec![],
     });
 
     // run_with_reconnect loops over run_session. After graceful shutdown it should
@@ -1666,6 +1678,7 @@ async fn worker_daemon_forwards_non_streaming_openai_responses_request_through_l
         models: vec!["gpt-4.1-mini".to_string()],
         max_concurrent: 1,
         backend_base_url: format!("http://{backend_addr}"),
+        endpoint_prefixes: vec![],
     });
 
     let daemon_handle = tokio::spawn(async move { daemon.run().await });
@@ -1725,6 +1738,7 @@ async fn worker_daemon_forwards_streaming_openai_responses_request_through_live_
         models: vec!["gpt-4.1-mini".to_string()],
         max_concurrent: 1,
         backend_base_url: format!("http://{backend_addr}"),
+        endpoint_prefixes: vec![],
     });
 
     let daemon_handle = tokio::spawn(async move { daemon.run().await });
@@ -1816,6 +1830,7 @@ async fn worker_daemon_authenticates_with_api_key_instead_of_static_secret() {
         models: vec!["gpt-4.1-mini".to_string()],
         max_concurrent: 1,
         backend_base_url: format!("http://{backend_addr}"),
+        endpoint_prefixes: vec![],
     });
 
     let daemon_handle = tokio::spawn(async move { daemon.run().await });
