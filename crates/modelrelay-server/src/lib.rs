@@ -975,7 +975,9 @@ impl ProxyServerCore {
             if endpoint_prefixes.is_empty() {
                 return true;
             }
-            endpoint_prefixes.iter().any(|prefix| path.starts_with(prefix.as_str()))
+            endpoint_prefixes
+                .iter()
+                .any(|prefix| path.starts_with(prefix.as_str()))
         };
 
         // Search all provider queues — not just the worker's own provider —
@@ -1052,10 +1054,7 @@ impl ProxyServerCore {
             .enumerate()
             .filter_map(|(position, worker_id)| {
                 let worker = self.workers.get(worker_id)?;
-                let supports_model = worker
-                    .models
-                    .iter()
-                    .any(|m| m == "*" || m == model);
+                let supports_model = worker.models.iter().any(|m| m == "*" || m == model);
                 let has_capacity = worker.selection_load() < worker.max_concurrent;
                 let supports_ep = worker.supports_endpoint(endpoint_path);
 
@@ -1075,7 +1074,12 @@ impl ProxyServerCore {
                     }
                 }
 
-                Some((position, worker_id.clone(), worker.selection_load(), worker.provider.clone()))
+                Some((
+                    position,
+                    worker_id.clone(),
+                    worker.selection_load(),
+                    worker.provider.clone(),
+                ))
             })
             .collect::<Vec<_>>();
 
