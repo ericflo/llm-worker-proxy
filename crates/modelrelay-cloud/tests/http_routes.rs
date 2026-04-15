@@ -311,6 +311,48 @@ async fn webhook_with_missing_v1_returns_400() {
     assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
 }
 
+// ─── Security headers ─────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn responses_include_security_headers() {
+    let resp = app()
+        .oneshot(Request::builder().uri("/").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let headers = resp.headers();
+    assert_eq!(
+        headers
+            .get("x-content-type-options")
+            .map(|v| v.to_str().unwrap()),
+        Some("nosniff"),
+    );
+    assert_eq!(
+        headers.get("x-frame-options").map(|v| v.to_str().unwrap()),
+        Some("DENY"),
+    );
+    assert_eq!(
+        headers.get("referrer-policy").map(|v| v.to_str().unwrap()),
+        Some("strict-origin-when-cross-origin"),
+    );
+    assert_eq!(
+        headers
+            .get("permissions-policy")
+            .map(|v| v.to_str().unwrap()),
+        Some("camera=(), microphone=(), geolocation=()"),
+    );
+    let csp = headers
+        .get("content-security-policy")
+        .map(|v| v.to_str().unwrap());
+    assert!(csp.is_some(), "missing content-security-policy header");
+    assert!(
+        csp.unwrap().contains("https://js.stripe.com"),
+        "CSP must allow Stripe JS"
+    );
+}
+
 // ─── Webhook with no webhook_secret configured returns 500 ────────────────
 
 #[tokio::test]
