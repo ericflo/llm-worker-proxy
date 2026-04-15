@@ -34,6 +34,34 @@ ModelRelay flips the model: a central proxy receives standard inference requests
   └────────┘  └────────┘  └────────┘
 ```
 
+## Desktop App
+
+ModelRelay Desktop is a native tray application that wraps the worker daemon in a lightweight GUI. It stays in your system tray and manages the connection to your relay server — no terminal required.
+
+**Features:**
+- System tray icon showing connection status (connected / disconnected / relaying)
+- Settings UI for backend URL, relay server, worker secret, model selection, and poll interval
+- Auto-reconnect on connection loss with status notifications
+- Auto-start on login
+- Live model list that refreshes as your backend models change
+
+**Download:** Grab the latest installer for your platform from the [Desktop Releases](https://github.com/ericflo/modelrelay/releases?q=desktop) page.
+
+| Platform | Installer |
+|----------|-----------|
+| Windows | `.msi` or `.exe` |
+| macOS | `.dmg` |
+| Linux | `.AppImage` or `.deb` |
+
+**Getting started:**
+1. Download and install the app for your platform
+2. Launch ModelRelay Desktop — it appears in your system tray
+3. Right-click the tray icon and open **Settings**
+4. Enter your backend URL (e.g. `http://127.0.0.1:8000`), relay server URL, and worker secret
+5. Click **Connect** — the tray icon updates to show your connection status
+
+The desktop app uses the same `modelrelay-worker` library under the hood, so it supports all the same backends (llama-server, Ollama, vLLM, LM Studio, etc.).
+
 ## Who is this for?
 
 - **Home GPU users** running local models who want a single API endpoint across multiple machines
