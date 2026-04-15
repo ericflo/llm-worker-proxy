@@ -8,6 +8,13 @@ use tauri::{
 };
 
 #[tauri::command]
+async fn get_has_saved_settings(manager: tauri::State<'_, WorkerManager>) -> Result<bool, String> {
+    let settings = manager.get_settings().await;
+    // Consider settings "saved" if the user has entered a worker secret
+    Ok(!settings.worker_secret.is_empty())
+}
+
+#[tauri::command]
 async fn get_status(manager: tauri::State<'_, WorkerManager>) -> Result<AppStatus, String> {
     Ok(manager.get_status().await)
 }
@@ -53,6 +60,7 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .invoke_handler(tauri::generate_handler![
+            get_has_saved_settings,
             get_status,
             get_settings,
             save_settings,
