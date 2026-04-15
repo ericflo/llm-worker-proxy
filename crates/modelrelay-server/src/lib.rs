@@ -160,6 +160,7 @@ impl ProxyServerCore {
         )
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn submit_transport_request(
         &mut self,
         provider: impl Into<String>,
@@ -272,6 +273,7 @@ impl ProxyServerCore {
     ///
     /// Returns [`RequestFailure`] when the underlying transport submission is rejected
     /// immediately, which currently happens if the provider queue is already full.
+    #[allow(clippy::too_many_arguments)]
     pub fn submit_http_response_request(
         &mut self,
         provider: impl Into<String>,
@@ -317,6 +319,7 @@ impl ProxyServerCore {
     ///
     /// Returns [`RequestFailure`] when the underlying transport submission is rejected
     /// immediately, which currently happens if the provider queue is already full.
+    #[allow(clippy::too_many_arguments)]
     pub fn submit_http_streaming_request(
         &mut self,
         provider: impl Into<String>,
@@ -1063,15 +1066,15 @@ impl ProxyServerCore {
                 }
 
                 // Apply only/ignore filters.
-                if let Some(only) = &routing.only {
-                    if !only.iter().any(|p| p == &worker.provider) {
-                        return None;
-                    }
+                if let Some(only) = &routing.only
+                    && !only.iter().any(|p| p == &worker.provider)
+                {
+                    return None;
                 }
-                if let Some(ignore) = &routing.ignore {
-                    if ignore.iter().any(|p| p == &worker.provider) {
-                        return None;
-                    }
+                if let Some(ignore) = &routing.ignore
+                    && ignore.iter().any(|p| p == &worker.provider)
+                {
+                    return None;
                 }
 
                 Some((

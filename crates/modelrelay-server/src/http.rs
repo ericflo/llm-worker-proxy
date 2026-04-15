@@ -419,7 +419,7 @@ async fn wildcard_handler(
         headers
             .get("x-model")
             .and_then(|v| v.to_str().ok())
-            .map(|s| s.to_string())
+            .map(String::from)
     });
 
     let Some(model) = model else {

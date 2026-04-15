@@ -89,6 +89,7 @@ fn load_config_file(path: &PathBuf) -> Result<FileConfig, String> {
 }
 
 #[tokio::main]
+#[allow(clippy::too_many_lines)]
 async fn main() {
     let args = Args::parse();
 
