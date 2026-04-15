@@ -6,161 +6,416 @@
   <title>ModelRelay</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg-base: #0f1117;
+      --bg-surface: #1a1b23;
+      --bg-elevated: #22232d;
+      --border: #27272a;
+      --border-hover: #3f3f46;
+      --text-primary: #e4e4e7;
+      --text-secondary: #a1a1aa;
+      --text-muted: #71717a;
+      --accent: #6366f1;
+      --accent-hover: #4f46e5;
+      --accent-muted: rgba(99,102,241,0.15);
+      --success: #22c55e;
+      --success-muted: rgba(34,197,94,0.12);
+      --danger: #ef4444;
+      --danger-hover: #dc2626;
+      --danger-muted: rgba(239,68,68,0.12);
+      --warning: #f59e0b;
+      --warning-muted: rgba(245,158,11,0.12);
+      --radius-sm: 6px;
+      --radius-md: 8px;
+      --radius-lg: 12px;
+      --transition: 0.15s ease;
+    }
+
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background: #0f1117;
-      color: #e4e4e7;
+      background: var(--bg-base);
+      color: var(--text-primary);
       min-height: 100vh;
       display: flex;
       flex-direction: column;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Focus ring for keyboard nav */
+    :focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
     }
 
     /* Tabs */
     .tab-bar {
       display: flex;
-      background: #1a1b23;
-      border-bottom: 1px solid #27272a;
-      padding: 0 16px;
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 20px;
+      gap: 4px;
     }
     .tab {
-      padding: 12px 20px;
+      padding: 12px 18px;
       font-size: 13px;
       font-weight: 500;
-      color: #71717a;
+      color: var(--text-muted);
       cursor: pointer;
       border-bottom: 2px solid transparent;
-      transition: color 0.15s, border-color 0.15s;
+      transition: color var(--transition), border-color var(--transition), background var(--transition);
       user-select: none;
+      border-radius: var(--radius-sm) var(--radius-sm) 0 0;
     }
-    .tab:hover { color: #a1a1aa; }
-    .tab.active { color: #e4e4e7; border-bottom-color: #6366f1; }
+    .tab:hover { color: var(--text-secondary); background: rgba(255,255,255,0.03); }
+    .tab.active { color: var(--text-primary); border-bottom-color: var(--accent); }
 
-    .tab-content { display: none; padding: 24px; flex: 1; overflow-y: auto; }
-    .tab-content.active { display: block; }
+    .tab-content {
+      display: none;
+      padding: 20px;
+      flex: 1;
+      overflow-y: auto;
+    }
+    .tab-content.active { display: flex; flex-direction: column; gap: 16px; }
 
     /* Cards */
     .card {
-      background: #1a1b23;
-      border: 1px solid #27272a;
-      border-radius: 8px;
-      padding: 16px;
-      margin-bottom: 16px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 20px;
+      transition: border-color var(--transition);
     }
 
-    /* Status */
-    .status-indicator {
-      display: inline-block;
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+    .card-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    /* Status header */
+    .status-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+    .status-dot {
       width: 10px;
       height: 10px;
       border-radius: 50%;
-      margin-right: 8px;
-      background: #ef4444;
+      background: var(--danger);
+      flex-shrink: 0;
+      transition: background var(--transition), box-shadow 0.3s ease;
     }
-    .status-indicator.connected { background: #22c55e; }
-    .label { font-size: 12px; color: #71717a; text-transform: uppercase; letter-spacing: 0.05em; }
-    .value { font-size: 14px; margin-top: 4px; }
-    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
-    .model-tag {
-      display: inline-block;
-      background: #27272a;
-      border-radius: 4px;
-      padding: 4px 8px;
-      font-size: 12px;
-      margin: 2px;
+    .status-dot.connected {
+      background: var(--success);
+      box-shadow: 0 0 8px rgba(34,197,94,0.4);
     }
-    #models { margin-top: 12px; }
+    .status-dot.connecting {
+      background: var(--warning);
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
 
-    /* Worker toggle */
-    .worker-toggle {
-      margin-top: 16px;
-      display: flex;
-      align-items: center;
+    .status-text {
+      font-size: 15px;
+      font-weight: 600;
+    }
+    .status-text.connected { color: var(--success); }
+    .status-text.disconnected { color: var(--text-muted); }
+
+    /* Stats grid */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
       gap: 12px;
     }
+    .stat-item {
+      background: var(--bg-base);
+      border-radius: var(--radius-md);
+      padding: 14px;
+      transition: background var(--transition);
+    }
+    .stat-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 6px;
+    }
+    .stat-value {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text-primary);
+      word-break: break-all;
+    }
+
+    /* Models section */
+    .models-section {
+      margin-top: 16px;
+    }
+    .models-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+    .models-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .models-count {
+      font-size: 11px;
+      color: var(--text-muted);
+      background: var(--bg-base);
+      padding: 2px 8px;
+      border-radius: 10px;
+    }
+    .models-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .model-tag {
+      display: inline-flex;
+      align-items: center;
+      background: var(--accent-muted);
+      color: #a5b4fc;
+      border-radius: var(--radius-sm);
+      padding: 5px 10px;
+      font-size: 12px;
+      font-weight: 500;
+      transition: background var(--transition);
+    }
+    .model-tag:hover { background: rgba(99,102,241,0.25); }
+
+    .models-empty {
+      text-align: center;
+      padding: 20px 16px;
+      color: var(--text-muted);
+      font-size: 13px;
+      background: var(--bg-base);
+      border-radius: var(--radius-md);
+      border: 1px dashed var(--border);
+    }
+    .models-empty-icon {
+      font-size: 20px;
+      margin-bottom: 6px;
+      opacity: 0.5;
+    }
+
+    .models-loading {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 20px;
+      color: var(--text-muted);
+      font-size: 13px;
+    }
+    .spinner {
+      width: 14px;
+      height: 14px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Refresh button */
+    .btn-icon {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      width: 28px;
+      height: 28px;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transition: all var(--transition);
+      font-size: 14px;
+    }
+    .btn-icon:hover { border-color: var(--border-hover); color: var(--text-secondary); background: var(--bg-elevated); }
+    .btn-icon.spinning svg { animation: spin 0.7s linear infinite; }
+
+    /* Error display */
+    .error-banner {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 12px 14px;
+      background: var(--danger-muted);
+      border: 1px solid rgba(239,68,68,0.3);
+      border-radius: var(--radius-md);
+      margin-top: 12px;
+      font-size: 13px;
+      color: #fca5a5;
+      line-height: 1.5;
+    }
+    .error-banner-icon { flex-shrink: 0; font-size: 14px; margin-top: 1px; }
+
+    /* Worker toggle */
+    .worker-controls {
+      display: flex;
+      gap: 10px;
+    }
     .btn {
-      padding: 8px 20px;
-      border-radius: 6px;
+      padding: 9px 20px;
+      border-radius: var(--radius-sm);
       border: none;
       font-size: 13px;
       font-weight: 500;
       cursor: pointer;
-      transition: background 0.15s, opacity 0.15s;
+      transition: all var(--transition);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
     }
-    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-    .btn-start { background: #22c55e; color: #0f1117; }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-start { background: var(--success); color: #052e16; }
     .btn-start:hover:not(:disabled) { background: #16a34a; }
-    .btn-stop { background: #ef4444; color: #fff; }
-    .btn-stop:hover:not(:disabled) { background: #dc2626; }
+    .btn-stop { background: var(--danger); color: #fff; }
+    .btn-stop:hover:not(:disabled) { background: var(--danger-hover); }
 
     /* Form */
-    .form-group { margin-bottom: 16px; }
+    .form-section { margin-bottom: 20px; }
+    .form-section:last-child { margin-bottom: 0; }
+    .form-section-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 14px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .form-group { margin-bottom: 14px; }
+    .form-group:last-child { margin-bottom: 0; }
     .form-group label {
       display: block;
       font-size: 12px;
       font-weight: 500;
-      color: #a1a1aa;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
+      color: var(--text-secondary);
       margin-bottom: 6px;
     }
+    .form-group .hint {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 4px;
+      line-height: 1.4;
+    }
+
     .form-group input[type="text"],
     .form-group input[type="password"],
     .form-group input[type="number"] {
       width: 100%;
-      padding: 8px 12px;
-      background: #0f1117;
-      border: 1px solid #27272a;
-      border-radius: 6px;
-      color: #e4e4e7;
-      font-size: 14px;
+      padding: 9px 12px;
+      background: var(--bg-base);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      color: var(--text-primary);
+      font-size: 13px;
       font-family: inherit;
       outline: none;
-      transition: border-color 0.15s;
+      transition: border-color var(--transition), box-shadow var(--transition);
     }
-    .form-group input:focus { border-color: #6366f1; }
+    .form-group input:hover { border-color: var(--border-hover); }
+    .form-group input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-muted);
+    }
+    .form-group input.invalid {
+      border-color: var(--danger);
+      box-shadow: 0 0 0 3px var(--danger-muted);
+    }
+    .form-group input::placeholder { color: #52525b; }
 
-    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 
     .checkbox-group {
       display: flex;
       align-items: center;
-      gap: 8px;
-      margin-bottom: 16px;
+      gap: 10px;
+      padding: 10px 12px;
+      background: var(--bg-base);
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      transition: border-color var(--transition);
+      cursor: pointer;
     }
+    .checkbox-group:hover { border-color: var(--border-hover); }
     .checkbox-group input[type="checkbox"] {
       width: 16px;
       height: 16px;
-      accent-color: #6366f1;
-    }
-    .checkbox-group label {
-      font-size: 14px;
-      color: #e4e4e7;
+      accent-color: var(--accent);
       cursor: pointer;
     }
+    .checkbox-group label {
+      font-size: 13px;
+      color: var(--text-primary);
+      cursor: pointer;
+      flex: 1;
+    }
 
-    .btn-save { background: #6366f1; color: #fff; width: 100%; padding: 10px; font-size: 14px; }
-    .btn-save:hover:not(:disabled) { background: #4f46e5; }
+    .btn-save {
+      background: var(--accent);
+      color: #fff;
+      width: 100%;
+      padding: 10px;
+      font-size: 14px;
+      font-weight: 500;
+      border-radius: var(--radius-sm);
+      border: none;
+      cursor: pointer;
+      transition: all var(--transition);
+      margin-top: 4px;
+    }
+    .btn-save:hover:not(:disabled) { background: var(--accent-hover); }
+    .btn-save:disabled { opacity: 0.4; cursor: not-allowed; }
 
     .save-feedback {
       text-align: center;
       font-size: 13px;
-      color: #22c55e;
-      margin-top: 8px;
+      margin-top: 10px;
       min-height: 20px;
+      transition: opacity 0.3s ease;
     }
-
-    .error-text { font-size: 13px; color: #ef4444; margin-top: 8px; }
+    .save-feedback.success { color: var(--success); }
+    .save-feedback.error { color: var(--danger); }
 
     /* Onboarding Wizard */
     .onboarding-overlay {
       position: fixed;
       inset: 0;
-      background: #0f1117;
+      background: var(--bg-base);
       z-index: 100;
       display: flex;
       align-items: center;
       justify-content: center;
+      animation: fadeIn 0.3s ease;
     }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
     .onboarding-overlay.hidden { display: none; }
 
     .wizard {
@@ -168,82 +423,54 @@
       max-width: 440px;
       padding: 32px 24px;
     }
-    .wizard-logo {
-      text-align: center;
-      margin-bottom: 24px;
-    }
-    .wizard-logo svg {
-      width: 48px;
-      height: 48px;
-    }
-    .wizard-logo h1 {
-      font-size: 22px;
-      font-weight: 600;
-      margin-top: 12px;
-    }
-    .wizard-logo p {
-      font-size: 13px;
-      color: #71717a;
-      margin-top: 6px;
-      line-height: 1.5;
-    }
+    .wizard-logo { text-align: center; margin-bottom: 28px; }
+    .wizard-logo svg { width: 48px; height: 48px; }
+    .wizard-logo h1 { font-size: 22px; font-weight: 600; margin-top: 14px; }
+    .wizard-logo p { font-size: 13px; color: var(--text-muted); margin-top: 8px; line-height: 1.5; }
 
-    .wizard-steps {
-      display: flex;
-      justify-content: center;
-      gap: 8px;
-      margin-bottom: 24px;
-    }
+    .wizard-steps { display: flex; justify-content: center; gap: 8px; margin-bottom: 28px; }
     .wizard-step-dot {
       width: 8px;
       height: 8px;
       border-radius: 50%;
-      background: #27272a;
-      transition: background 0.2s;
+      background: var(--border);
+      transition: background 0.25s ease, transform 0.25s ease;
     }
-    .wizard-step-dot.active { background: #6366f1; }
-    .wizard-step-dot.done { background: #22c55e; }
+    .wizard-step-dot.active { background: var(--accent); transform: scale(1.2); }
+    .wizard-step-dot.done { background: var(--success); }
 
-    .wizard-panel { display: none; }
+    .wizard-panel { display: none; animation: slideIn 0.25s ease; }
     .wizard-panel.active { display: block; }
+    @keyframes slideIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 
-    .wizard-nav {
-      display: flex;
-      gap: 12px;
-      margin-top: 20px;
-    }
+    .wizard-nav { display: flex; gap: 12px; margin-top: 24px; }
     .btn-wizard {
       flex: 1;
       padding: 10px;
-      border-radius: 6px;
+      border-radius: var(--radius-sm);
       border: none;
       font-size: 14px;
       font-weight: 500;
       cursor: pointer;
-      transition: background 0.15s, opacity 0.15s;
+      transition: all var(--transition);
     }
-    .btn-wizard:disabled { opacity: 0.5; cursor: not-allowed; }
-    .btn-wizard-secondary {
-      background: #27272a;
-      color: #e4e4e7;
-    }
-    .btn-wizard-secondary:hover:not(:disabled) { background: #3f3f46; }
-    .btn-wizard-primary {
-      background: #6366f1;
-      color: #fff;
-    }
-    .btn-wizard-primary:hover:not(:disabled) { background: #4f46e5; }
+    .btn-wizard:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-wizard-secondary { background: var(--bg-elevated); color: var(--text-primary); border: 1px solid var(--border); }
+    .btn-wizard-secondary:hover:not(:disabled) { background: #2d2e38; border-color: var(--border-hover); }
+    .btn-wizard-primary { background: var(--accent); color: #fff; }
+    .btn-wizard-primary:hover:not(:disabled) { background: var(--accent-hover); }
 
     .test-result {
       margin-top: 16px;
-      padding: 12px;
-      border-radius: 6px;
+      padding: 12px 14px;
+      border-radius: var(--radius-md);
       font-size: 13px;
       line-height: 1.5;
+      animation: fadeIn 0.2s ease;
     }
-    .test-result.success { background: rgba(34,197,94,0.1); border: 1px solid #22c55e; color: #22c55e; }
-    .test-result.failure { background: rgba(239,68,68,0.1); border: 1px solid #ef4444; color: #ef4444; }
-    .test-result.testing { background: rgba(99,102,241,0.1); border: 1px solid #6366f1; color: #a5b4fc; }
+    .test-result.success { background: var(--success-muted); border: 1px solid rgba(34,197,94,0.3); color: #86efac; }
+    .test-result.failure { background: var(--danger-muted); border: 1px solid rgba(239,68,68,0.3); color: #fca5a5; }
+    .test-result.testing { background: var(--accent-muted); border: 1px solid rgba(99,102,241,0.3); color: #a5b4fc; }
   </style>
 </head>
 <body>
@@ -271,9 +498,7 @@
           <div class="form-group">
             <label for="wizBackendUrl">Backend URL</label>
             <input type="text" id="wizBackendUrl" placeholder="http://localhost:11434" value="http://localhost:11434">
-          </div>
-          <div style="font-size:12px;color:#71717a;line-height:1.5;">
-            The address of your local LLM server (Ollama, LM Studio, etc).
+            <div class="hint">The address of your local LLM server (Ollama, LM Studio, etc).</div>
           </div>
         </div>
         <div class="wizard-nav">
@@ -291,9 +516,7 @@
           <div class="form-group">
             <label for="wizWorkerSecret">Worker Secret / API Key</label>
             <input type="password" id="wizWorkerSecret" placeholder="Enter your worker secret">
-          </div>
-          <div style="font-size:12px;color:#71717a;line-height:1.5;">
-            Get your worker secret from the ModelRelay dashboard.
+            <div class="hint">Get your worker secret from the ModelRelay dashboard.</div>
           </div>
         </div>
         <div class="wizard-nav">
@@ -305,11 +528,13 @@
       <!-- Step 2: Test Connection -->
       <div class="wizard-panel" data-panel="2">
         <div class="card">
-          <div style="font-size:14px;margin-bottom:12px;">Test your connection</div>
-          <div style="font-size:12px;color:#71717a;line-height:1.5;margin-bottom:16px;">
-            We'll save your settings and start the worker to verify everything is configured correctly.
+          <div style="font-size:14px;font-weight:500;margin-bottom:8px;">Test your connection</div>
+          <div class="hint" style="margin-bottom:16px;margin-top:0;">
+            We'll save your settings and start the worker to verify everything works.
           </div>
-          <button id="wizTestBtn" class="btn-wizard btn-wizard-primary" style="width:100%" onclick="wizardTest()">Test Connection</button>
+          <button id="wizTestBtn" class="btn-wizard btn-wizard-primary" style="width:100%" onclick="wizardTest()">
+            Test Connection
+          </button>
           <div id="wizTestResult"></div>
         </div>
         <div class="wizard-nav">
@@ -321,84 +546,136 @@
   </div>
 
   <div class="tab-bar">
-    <div class="tab active" data-tab="dashboard">Dashboard</div>
-    <div class="tab" data-tab="settings">Settings</div>
+    <div class="tab active" data-tab="dashboard" tabindex="0" role="tab">Dashboard</div>
+    <div class="tab" data-tab="settings" tabindex="0" role="tab">Settings</div>
   </div>
 
   <!-- Dashboard Tab -->
-  <div id="tab-dashboard" class="tab-content active">
+  <div id="tab-dashboard" class="tab-content active" role="tabpanel">
+    <!-- Connection Status -->
     <div class="card">
-      <div>
-        <span id="statusDot" class="status-indicator"></span>
-        <span id="statusText">Disconnected</span>
+      <div class="status-header">
+        <div id="statusDot" class="status-dot" title="Worker is disconnected"></div>
+        <span id="statusText" class="status-text disconnected">Disconnected</span>
       </div>
-      <div class="grid">
-        <div>
-          <div class="label">Relay</div>
-          <div class="value" id="relayUrl">-</div>
+
+      <div class="stats-grid">
+        <div class="stat-item">
+          <div class="stat-label">Relay Server</div>
+          <div class="stat-value" id="relayUrl">&mdash;</div>
         </div>
-        <div>
-          <div class="label">Active Requests</div>
-          <div class="value" id="activeRequests">0</div>
+        <div class="stat-item">
+          <div class="stat-label">Active Requests</div>
+          <div class="stat-value" id="activeRequests">0</div>
         </div>
       </div>
-      <div id="models"></div>
+
       <div id="errorDisplay"></div>
     </div>
 
+    <!-- Models -->
     <div class="card">
-      <div class="label" style="margin-bottom: 8px;">Worker Control</div>
-      <div class="worker-toggle">
-        <button id="startBtn" class="btn btn-start" onclick="doStart()">Start Worker</button>
-        <button id="stopBtn" class="btn btn-stop" onclick="doStop()" disabled>Stop Worker</button>
+      <div class="card-header">
+        <span class="card-title">Models</span>
+        <button id="refreshBtn" class="btn-icon" onclick="doRefresh()" title="Refresh models">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+            <path d="M14 8A6 6 0 1 1 8 2"/>
+            <path d="M14 2v4h-4"/>
+          </svg>
+        </button>
+      </div>
+      <div id="models">
+        <div class="models-empty">
+          <div class="models-empty-icon">&#x2731;</div>
+          No models discovered yet. Start the worker to detect available models.
+        </div>
+      </div>
+    </div>
+
+    <!-- Worker Control -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Worker Control</span>
+      </div>
+      <div class="worker-controls">
+        <button id="startBtn" class="btn btn-start" onclick="doStart()">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor"><polygon points="2,0 12,6 2,12"/></svg>
+          Start
+        </button>
+        <button id="stopBtn" class="btn btn-stop" onclick="doStop()" disabled>
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor"><rect x="1" y="1" width="10" height="10" rx="1"/></svg>
+          Stop
+        </button>
       </div>
     </div>
   </div>
 
   <!-- Settings Tab -->
-  <div id="tab-settings" class="tab-content">
+  <div id="tab-settings" class="tab-content" role="tabpanel">
     <div class="card">
-      <div class="form-group">
-        <label for="backendUrl">Backend URL</label>
-        <input type="text" id="backendUrl" placeholder="http://localhost:11434">
-      </div>
-      <div class="form-group">
-        <label for="relayUrlSetting">Relay Server URL</label>
-        <input type="text" id="relayUrlSetting" placeholder="https://api.modelrelay.io">
-      </div>
-      <div class="form-group">
-        <label for="workerSecret">Worker Secret / API Key</label>
-        <input type="password" id="workerSecret" placeholder="Enter your worker secret">
-      </div>
-      <div class="form-row">
+      <!-- Connection section -->
+      <div class="form-section">
+        <div class="form-section-title">Connection</div>
         <div class="form-group">
-          <label for="provider">Provider</label>
-          <input type="text" id="provider" placeholder="default">
+          <label for="backendUrl">Backend URL</label>
+          <input type="text" id="backendUrl" placeholder="http://localhost:11434">
+          <div class="hint">Local LLM server address (Ollama, LM Studio, vLLM, etc.)</div>
         </div>
         <div class="form-group">
-          <label for="workerName">Worker Name</label>
-          <input type="text" id="workerName" placeholder="my-worker">
-        </div>
-      </div>
-      <div class="form-group">
-        <label for="modelsInput">Models (comma-separated)</label>
-        <input type="text" id="modelsInput" placeholder="* (all models)">
-      </div>
-      <div class="form-row">
-        <div class="form-group">
-          <label for="maxConcurrent">Max Concurrent</label>
-          <input type="number" id="maxConcurrent" min="1" max="64" placeholder="4">
+          <label for="relayUrlSetting">Relay Server URL</label>
+          <input type="text" id="relayUrlSetting" placeholder="https://api.modelrelay.io">
         </div>
         <div class="form-group">
-          <label for="pollInterval">Poll Interval (seconds)</label>
-          <input type="number" id="pollInterval" min="1" max="3600" placeholder="30">
+          <label for="workerSecret">Worker Secret / API Key</label>
+          <input type="password" id="workerSecret" placeholder="Enter your worker secret">
         </div>
       </div>
-      <div class="checkbox-group">
-        <input type="checkbox" id="autoStart">
-        <label for="autoStart">Auto-start worker on launch</label>
+
+      <!-- Identity section -->
+      <div class="form-section">
+        <div class="form-section-title">Identity</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="provider">Provider</label>
+            <input type="text" id="provider" placeholder="default">
+          </div>
+          <div class="form-group">
+            <label for="workerName">Worker Name</label>
+            <input type="text" id="workerName" placeholder="my-worker">
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="modelsInput">Models</label>
+          <input type="text" id="modelsInput" placeholder="* (all models)">
+          <div class="hint">Comma-separated list, or * to expose all available models.</div>
+        </div>
       </div>
-      <button class="btn btn-save" onclick="doSave()">Save Settings</button>
+
+      <!-- Performance section -->
+      <div class="form-section">
+        <div class="form-section-title">Performance</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="maxConcurrent">Max Concurrent</label>
+            <input type="number" id="maxConcurrent" min="1" max="64" placeholder="4">
+          </div>
+          <div class="form-group">
+            <label for="pollInterval">Poll Interval (s)</label>
+            <input type="number" id="pollInterval" min="1" max="3600" placeholder="30">
+          </div>
+        </div>
+      </div>
+
+      <!-- Behavior section -->
+      <div class="form-section">
+        <div class="form-section-title">Behavior</div>
+        <div class="checkbox-group" onclick="document.getElementById('autoStart').click()">
+          <input type="checkbox" id="autoStart" onclick="event.stopPropagation()">
+          <label for="autoStart" onclick="event.stopPropagation()">Auto-start worker on launch</label>
+        </div>
+      </div>
+
+      <button class="btn-save" onclick="doSave()">Save Settings</button>
       <div id="saveFeedback" class="save-feedback"></div>
     </div>
   </div>
@@ -409,13 +686,15 @@
 
     // Tab switching
     document.querySelectorAll(".tab").forEach(tab => {
-      tab.addEventListener("click", () => {
+      function activate() {
         document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
         document.querySelectorAll(".tab-content").forEach(c => c.classList.remove("active"));
         tab.classList.add("active");
         document.getElementById("tab-" + tab.dataset.tab).classList.add("active");
         if (tab.dataset.tab === "settings") loadSettings();
-      });
+      }
+      tab.addEventListener("click", activate);
+      tab.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); activate(); } });
     });
 
     // Open to the correct tab from URL params (used by tray menu)
@@ -430,11 +709,8 @@
     // Listen for navigate-tab events from Rust
     try {
       getCurrentWebviewWindow().listen("navigate-tab", (event) => {
-        const tabName = event.payload;
-        const tabEl = document.querySelector('[data-tab="' + tabName + '"]');
-        if (tabEl) {
-          tabEl.click();
-        }
+        const tabEl = document.querySelector('[data-tab="' + event.payload + '"]');
+        if (tabEl) tabEl.click();
       });
     } catch (e) {
       console.error("Failed to set up event listener:", e);
@@ -448,22 +724,47 @@
         const status = await invoke("get_status");
         const dot = document.getElementById("statusDot");
         const text = document.getElementById("statusText");
-        dot.className = "status-indicator" + (status.connected ? " connected" : "");
-        text.textContent = status.connected ? "Connected" : "Disconnected";
-        document.getElementById("relayUrl").textContent = status.relay_url || "-";
-        document.getElementById("activeRequests").textContent = status.active_requests;
 
-        const modelsEl = document.getElementById("models");
-        if (status.models.length > 0) {
-          modelsEl.innerHTML = '<div class="label">Models</div>' +
-            status.models.map(m => '<span class="model-tag">' + escapeHtml(m) + '</span>').join("");
+        if (status.connected) {
+          dot.className = "status-dot connected";
+          dot.title = "Worker is connected to relay";
+          text.className = "status-text connected";
+          text.textContent = "Connected";
         } else {
-          modelsEl.innerHTML = "";
+          dot.className = "status-dot";
+          dot.title = "Worker is disconnected";
+          text.className = "status-text disconnected";
+          text.textContent = "Disconnected";
         }
 
+        document.getElementById("relayUrl").textContent = status.relay_url || "\u2014";
+        document.getElementById("activeRequests").textContent = status.active_requests;
+
+        // Models
+        const modelsEl = document.getElementById("models");
+        if (status.models.length > 0) {
+          modelsEl.innerHTML =
+            '<div class="models-grid">' +
+            status.models.map(m => '<span class="model-tag">' + escapeHtml(m) + '</span>').join("") +
+            '</div>';
+        } else if (status.connected) {
+          modelsEl.innerHTML = '<div class="models-loading"><div class="spinner"></div>Discovering models\u2026</div>';
+        } else {
+          modelsEl.innerHTML =
+            '<div class="models-empty">' +
+            '<div class="models-empty-icon">&#x2731;</div>' +
+            'No models discovered yet. Start the worker to detect available models.' +
+            '</div>';
+        }
+
+        // Error
         const errorEl = document.getElementById("errorDisplay");
         if (status.error) {
-          errorEl.innerHTML = '<div class="error-text">' + escapeHtml(status.error) + '</div>';
+          errorEl.innerHTML =
+            '<div class="error-banner">' +
+            '<span class="error-banner-icon">&#x26A0;</span>' +
+            '<span>' + escapeHtml(status.error) + '</span>' +
+            '</div>';
         } else {
           errorEl.innerHTML = "";
         }
@@ -480,6 +781,13 @@
       const div = document.createElement("div");
       div.textContent = str;
       return div.innerHTML;
+    }
+
+    async function doRefresh() {
+      const btn = document.getElementById("refreshBtn");
+      btn.classList.add("spinning");
+      await refreshStatus();
+      setTimeout(() => btn.classList.remove("spinning"), 600);
     }
 
     async function doStart() {
@@ -525,6 +833,8 @@
     async function doSave() {
       const feedback = document.getElementById("saveFeedback");
       feedback.textContent = "";
+      feedback.className = "save-feedback";
+
       try {
         const modelsRaw = document.getElementById("modelsInput").value;
         const models = modelsRaw.split(",").map(m => m.trim()).filter(m => m.length > 0);
@@ -543,12 +853,13 @@
         };
 
         await invoke("save_settings", { settings });
-        feedback.textContent = "Settings saved!";
+        feedback.textContent = "\u2713 Settings saved";
+        feedback.className = "save-feedback success";
         setTimeout(() => { feedback.textContent = ""; }, 3000);
       } catch (e) {
         feedback.textContent = "Error: " + e;
-        feedback.style.color = "#ef4444";
-        setTimeout(() => { feedback.style.color = "#22c55e"; }, 3000);
+        feedback.className = "save-feedback error";
+        setTimeout(() => { feedback.textContent = ""; feedback.className = "save-feedback"; }, 5000);
       }
     }
 
@@ -569,7 +880,10 @@
       if (wizardStep === 1) {
         const secret = document.getElementById("wizWorkerSecret").value.trim();
         if (!secret) {
-          alert("Worker secret is required.");
+          const input = document.getElementById("wizWorkerSecret");
+          input.classList.add("invalid");
+          input.focus();
+          setTimeout(() => input.classList.remove("invalid"), 2000);
           return;
         }
       }
@@ -608,7 +922,7 @@
         await invoke("save_settings", { settings });
         await invoke("start_worker");
 
-        // Wait briefly for connection to establish
+        // Wait briefly for connection
         await new Promise(r => setTimeout(r, 3000));
         const status = await invoke("get_status");
 
@@ -617,7 +931,7 @@
           const modelInfo = status.models.length > 0
             ? " Models found: " + status.models.join(", ")
             : "";
-          resultEl.textContent = "Connected successfully!" + modelInfo;
+          resultEl.textContent = "\u2713 Connected successfully!" + modelInfo;
           finishBtn.disabled = false;
         } else {
           resultEl.className = "test-result failure";
