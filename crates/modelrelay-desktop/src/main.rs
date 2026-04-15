@@ -2,7 +2,7 @@
 
 use modelrelay_desktop::{AppSettings, AppStatus, WorkerManager};
 use tauri::{
-    Manager,
+    Emitter, Manager,
     menu::{MenuBuilder, MenuItemBuilder},
     tray::TrayIconBuilder,
 };
