@@ -268,6 +268,46 @@ async fn checkout_success_without_session_returns_200() {
     }
 }
 
+// ─── SEO routes ───────────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn robots_txt_returns_200_with_correct_content() {
+    let (status, body) = get("/robots.txt").await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(
+        body.contains("User-agent: *"),
+        "missing User-agent directive"
+    );
+    assert!(body.contains("Allow: /"), "missing Allow directive");
+    assert!(
+        body.contains("Sitemap: https://modelrelay.io/sitemap.xml"),
+        "missing Sitemap directive"
+    );
+}
+
+#[tokio::test]
+async fn sitemap_xml_returns_200_with_correct_content() {
+    let (status, body) = get("/sitemap.xml").await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(
+        body.contains("http://www.sitemaps.org/schemas/sitemap/0.9"),
+        "missing sitemap namespace"
+    );
+    for path in &["/", "/pricing", "/signup", "/login"] {
+        assert!(
+            body.contains(&format!("https://modelrelay.io{path}")),
+            "missing URL for {path}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn favicon_returns_success() {
+    let (status, body) = get("/favicon.ico").await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(body.contains("<svg"), "expected SVG favicon");
+}
+
 // ─── Stripe webhook ────────────────────────────────────────────────────────
 
 #[tokio::test]

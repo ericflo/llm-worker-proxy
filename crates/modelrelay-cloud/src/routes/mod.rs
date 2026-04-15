@@ -42,6 +42,9 @@ pub fn router(state: Arc<CloudState>) -> Router {
         .route("/setup", get(dashboard::setup))
         .route("/integrate", get(dashboard::integrate))
         .route("/webhook/stripe", post(webhook::handle))
+        .route("/robots.txt", get(robots_txt))
+        .route("/sitemap.xml", get(sitemap_xml))
+        .route("/favicon.ico", get(favicon_ico))
         .fallback(not_found)
         .layer(middleware::from_fn(csrf::csrf_middleware))
         .with_state(state)
@@ -66,6 +69,39 @@ async fn not_found() -> impl IntoResponse {
             false,
         )),
     )
+}
+
+async fn robots_txt() -> impl IntoResponse {
+    (
+        [(
+            axum::http::header::CONTENT_TYPE,
+            "text/plain; charset=utf-8",
+        )],
+        "User-agent: *\nAllow: /\nSitemap: https://modelrelay.io/sitemap.xml\n",
+    )
+}
+
+async fn sitemap_xml() -> impl IntoResponse {
+    (
+        [(
+            axum::http::header::CONTENT_TYPE,
+            "application/xml; charset=utf-8",
+        )],
+        r#"<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://modelrelay.io/</loc></url>
+  <url><loc>https://modelrelay.io/pricing</loc></url>
+  <url><loc>https://modelrelay.io/signup</loc></url>
+  <url><loc>https://modelrelay.io/login</loc></url>
+</urlset>
+"#,
+    )
+}
+
+async fn favicon_ico() -> impl IntoResponse {
+    // Minimal SVG favicon matching the purple "M" logo used in the HTML head.
+    let svg = r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="6" fill="#7c3aed"/><text x="16" y="24" font-size="22" font-weight="bold" fill="white" text-anchor="middle" font-family="system-ui,sans-serif">M</text></svg>"##;
+    ([(axum::http::header::CONTENT_TYPE, "image/svg+xml")], svg)
 }
 
 async fn health(State(state): State<Arc<CloudState>>) -> Json<Value> {
