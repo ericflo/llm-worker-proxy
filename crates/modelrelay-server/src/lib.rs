@@ -2545,10 +2545,7 @@ mod tests {
 
         match result {
             SubmissionOutcome::Dispatched(d) => assert_eq!(d.worker_id, anthropic),
-            other => panic!(
-                "expected fallback Dispatched to anthropic, got {:?}",
-                other
-            ),
+            other => panic!("expected fallback Dispatched to anthropic, got {:?}", other),
         }
     }
 
@@ -2622,10 +2619,7 @@ mod tests {
             )
             .worker_id;
         let _azure = core
-            .register_worker(
-                "azure",
-                register_message("azure-1", &["gpt-4"], 2, Some(0)),
-            )
+            .register_worker("azure", register_message("azure-1", &["gpt-4"], 2, Some(0)))
             .worker_id;
 
         // Only openai and anthropic, prefer anthropic first
@@ -2693,10 +2687,7 @@ mod tests {
             )
             .worker_id;
         let azure = core
-            .register_worker(
-                "azure",
-                register_message("azure-1", &["gpt-4"], 2, Some(0)),
-            )
+            .register_worker("azure", register_message("azure-1", &["gpt-4"], 2, Some(0)))
             .worker_id;
 
         // Ignore anthropic, prefer azure first then openai
@@ -2904,7 +2895,10 @@ mod tests {
 
         match result {
             SubmissionOutcome::Dispatched(d) => assert_eq!(d.worker_id, openai_embed),
-            other => panic!("expected Dispatched to openai embed worker, got {:?}", other),
+            other => panic!(
+                "expected Dispatched to openai embed worker, got {:?}",
+                other
+            ),
         }
     }
 
@@ -2974,12 +2968,7 @@ mod tests {
             .worker_id;
 
         // ProviderRouting with all fields None should behave like no routing
-        let result = submit_with_routing(
-            &mut core,
-            "openai",
-            "gpt-4",
-            ProviderRouting::default(),
-        );
+        let result = submit_with_routing(&mut core, "openai", "gpt-4", ProviderRouting::default());
 
         match result {
             SubmissionOutcome::Dispatched(d) => assert_eq!(d.worker_id, worker),
