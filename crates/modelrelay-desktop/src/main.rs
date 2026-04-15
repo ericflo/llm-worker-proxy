@@ -1,6 +1,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use modelrelay_desktop::{get_settings, get_status, save_settings};
 use tauri::{
     Manager,
     menu::{MenuBuilder, MenuItemBuilder},
@@ -19,9 +18,9 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .invoke_handler(tauri::generate_handler![
-            get_status,
-            get_settings,
-            save_settings,
+            modelrelay_desktop::get_status,
+            modelrelay_desktop::get_settings,
+            modelrelay_desktop::save_settings,
         ])
         .setup(|app| {
             let show = MenuItemBuilder::with_id("show", "Open Dashboard").build(app)?;
