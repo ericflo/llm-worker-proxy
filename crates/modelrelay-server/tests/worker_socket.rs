@@ -192,9 +192,11 @@ async fn submit_heartbeat_initial_request(core: &Arc<Mutex<ProxyServerCore>>, wo
             "openai",
             "llama-3.1-70b",
             "/v1/chat/completions",
+            "POST",
             false,
             r#"{"model":"llama-3.1-70b","messages":[{"role":"user","content":"heartbeat me"}]}"#,
             HeaderMap::new(),
+            None,
         ),
         SubmissionOutcome::Dispatched(modelrelay_server::DispatchAssignment {
             request_id: "request-1".to_string(),
@@ -210,9 +212,11 @@ async fn submit_heartbeat_follow_up_request(core: &Arc<Mutex<ProxyServerCore>>) 
             "openai",
             "llama-3.1-70b",
             "/v1/chat/completions",
+            "POST",
             false,
             r#"{"model":"llama-3.1-70b","messages":[{"role":"user","content":"stay queued until complete"}]}"#,
             HeaderMap::new(),
+            None,
         ),
         SubmissionOutcome::Queued(modelrelay_server::QueuedAssignment {
             request_id: "request-2".to_string(),
@@ -248,6 +252,7 @@ async fn register_test_worker_with(
         models,
         max_concurrent,
         protocol_version: Some("2026-04-bridge-v1".to_string()),
+        endpoint_prefixes: vec![],
         current_load,
     });
     let register_payload = serde_json::to_string(&register).expect("serialize register");
@@ -284,6 +289,7 @@ fn expected_request_message(
         request_id: request_id.to_string(),
         model: "llama-3.1-70b".to_string(),
         endpoint_path: "/v1/chat/completions".to_string(),
+        method: "POST".to_string(),
         is_streaming: false,
         body: body.to_string(),
         headers,
@@ -330,9 +336,11 @@ async fn queue_cancel_test_requests(
             "openai",
             "llama-3.1-70b",
             "/v1/chat/completions",
+            "POST",
             false,
             r#"{"model":"llama-3.1-70b","messages":[{"role":"user","content":"cancel me"}]}"#,
             HeaderMap::new(),
+            None,
         ),
         SubmissionOutcome::Dispatched(modelrelay_server::DispatchAssignment {
             request_id: "request-1".to_string(),
@@ -344,9 +352,11 @@ async fn queue_cancel_test_requests(
             "openai",
             "llama-3.1-70b",
             "/v1/chat/completions",
+            "POST",
             false,
             r#"{"model":"llama-3.1-70b","messages":[{"role":"user","content":"after cancel"}]}"#,
             second_headers.clone(),
+            None,
         ),
         SubmissionOutcome::Queued(modelrelay_server::QueuedAssignment {
             request_id: "request-2".to_string(),
@@ -402,9 +412,11 @@ async fn submit_graceful_shutdown_test_requests(
             "openai",
             "llama-3.1-70b",
             "/v1/chat/completions",
+            "POST",
             false,
             r#"{"model":"llama-3.1-70b","messages":[{"role":"user","content":"finish before drain"}]}"#,
             HeaderMap::new(),
+            None,
         ),
         SubmissionOutcome::Dispatched(modelrelay_server::DispatchAssignment {
             request_id: "request-1".to_string(),
@@ -416,9 +428,11 @@ async fn submit_graceful_shutdown_test_requests(
             "openai",
             "llama-3.1-70b",
             "/v1/chat/completions",
+            "POST",
             false,
             r#"{"model":"llama-3.1-70b","messages":[{"role":"user","content":"stay queued during drain"}]}"#,
             HeaderMap::new(),
+            None,
         ),
         SubmissionOutcome::Queued(modelrelay_server::QueuedAssignment {
             request_id: "request-2".to_string(),
@@ -442,6 +456,7 @@ async fn authenticated_worker_can_register_and_receive_register_ack() {
             max_concurrent: 2,
             protocol_version: Some("2026-04-bridge-v1".to_string()),
             current_load: Some(0),
+            endpoint_prefixes: vec![],
         },
     )
     .await;
@@ -464,6 +479,7 @@ async fn authenticated_worker_can_register_and_receive_register_ack() {
             models: vec!["llama-3.1-70b".to_string(), "mistral-large".to_string()],
             warnings: Vec::new(),
             protocol_version: Some("2026-04-bridge-v1".to_string()),
+            endpoint_prefixes: vec![],
         })
     );
 
@@ -489,6 +505,7 @@ async fn mismatched_protocol_version_is_closed_with_protocol_error() {
             max_concurrent: 1,
             protocol_version: Some("katamari-pre-release".to_string()),
             current_load: Some(0),
+            endpoint_prefixes: vec![],
         },
     )
     .await;
@@ -620,9 +637,11 @@ async fn registered_worker_receives_request_and_response_complete_dispatches_nex
                 "openai",
                 "llama-3.1-70b",
                 "/v1/chat/completions",
+                "POST",
                 false,
                 r#"{"model":"llama-3.1-70b","messages":[{"role":"user","content":"hi"}]}"#,
                 first_headers.clone(),
+                None,
             ),
             SubmissionOutcome::Dispatched(modelrelay_server::DispatchAssignment {
                 request_id: "request-1".to_string(),
@@ -634,9 +653,11 @@ async fn registered_worker_receives_request_and_response_complete_dispatches_nex
                 "openai",
                 "llama-3.1-70b",
                 "/v1/chat/completions",
+                "POST",
                 false,
                 r#"{"model":"llama-3.1-70b","messages":[{"role":"user","content":"next"}]}"#,
                 second_headers.clone(),
+                None,
             ),
             SubmissionOutcome::Queued(modelrelay_server::QueuedAssignment {
                 request_id: "request-2".to_string(),
@@ -711,9 +732,11 @@ async fn worker_models_update_dispatches_newly_compatible_queued_request_without
                 "openai",
                 "mistral-large",
                 "/v1/chat/completions",
+                "POST",
                 false,
                 r#"{"model":"mistral-large","messages":[{"role":"user","content":"route after models_update"}]}"#,
                 HeaderMap::new(),
+                None,
             ),
             SubmissionOutcome::Queued(modelrelay_server::QueuedAssignment {
                 request_id: "request-1".to_string(),
@@ -746,6 +769,7 @@ async fn worker_models_update_dispatches_newly_compatible_queued_request_without
             request_id: "request-1".to_string(),
             model: "mistral-large".to_string(),
             endpoint_path: "/v1/chat/completions".to_string(),
+            method: "POST".to_string(),
             is_streaming: false,
             body: r#"{"model":"mistral-large","messages":[{"role":"user","content":"route after models_update"}]}"#.to_string(),
             headers: HeaderMap::new(),
@@ -789,9 +813,11 @@ async fn streaming_response_chunks_preserve_in_flight_request_until_response_com
                 "openai",
                 "llama-3.1-70b",
                 "/v1/chat/completions",
+                "POST",
                 true,
                 r#"{"model":"llama-3.1-70b","stream":true,"messages":[{"role":"user","content":"stream"}]}"#,
                 HeaderMap::new(),
+                None,
             ),
             SubmissionOutcome::Dispatched(modelrelay_server::DispatchAssignment {
                 request_id: "request-1".to_string(),
@@ -803,9 +829,11 @@ async fn streaming_response_chunks_preserve_in_flight_request_until_response_com
                 "openai",
                 "llama-3.1-70b",
                 "/v1/chat/completions",
+                "POST",
                 false,
                 r#"{"model":"llama-3.1-70b","messages":[{"role":"user","content":"after-stream"}]}"#,
                 second_headers.clone(),
+                None,
             ),
             SubmissionOutcome::Queued(modelrelay_server::QueuedAssignment {
                 request_id: "request-2".to_string(),
@@ -820,6 +848,7 @@ async fn streaming_response_chunks_preserve_in_flight_request_until_response_com
             request_id: "request-1".to_string(),
             model: "llama-3.1-70b".to_string(),
             endpoint_path: "/v1/chat/completions".to_string(),
+            method: "POST".to_string(),
             is_streaming: true,
             body: r#"{"model":"llama-3.1-70b","stream":true,"messages":[{"role":"user","content":"stream"}]}"#.to_string(),
             headers: HeaderMap::new(),
@@ -1090,9 +1119,11 @@ async fn stale_heartbeat_worker_is_disconnected_and_removed_from_routing() {
             "openai",
             "llama-3.1-70b",
             "/v1/chat/completions",
+            "POST",
             false,
             r#"{"model":"llama-3.1-70b","messages":[{"role":"user","content":"still there?"}]}"#,
             HeaderMap::new(),
+            None,
         ),
         SubmissionOutcome::Queued(modelrelay_server::QueuedAssignment {
             request_id: "request-1".to_string(),
@@ -1176,9 +1207,11 @@ async fn graceful_shutdown_timeout_disconnects_worker_and_removes_in_flight_requ
                 "openai",
                 "llama-3.1-70b",
                 "/v1/chat/completions",
+                "POST",
                 false,
                 r#"{"model":"llama-3.1-70b","messages":[{"role":"user","content":"timeout during drain"}]}"#,
                 HeaderMap::new(),
+                None,
             ),
             SubmissionOutcome::Dispatched(modelrelay_server::DispatchAssignment {
                 request_id: "request-1".to_string(),

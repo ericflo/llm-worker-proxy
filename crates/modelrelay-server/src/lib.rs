@@ -1553,6 +1553,7 @@ mod tests {
             max_concurrent,
             protocol_version: Some("2026-04-bridge-v1".to_string()),
             current_load,
+            endpoint_prefixes: vec![],
         }
     }
 
