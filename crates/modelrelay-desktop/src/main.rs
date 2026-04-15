@@ -106,10 +106,18 @@ fn main() {
                 .tooltip("ModelRelay - Disconnected")
                 .menu(&menu)
                 .on_menu_event(|app, event| match event.id().as_ref() {
-                    "show" | "settings" => {
+                    "show" => {
                         if let Some(window) = app.get_webview_window("main") {
                             let _ = window.show();
                             let _ = window.set_focus();
+                            let _ = window.emit("navigate-tab", "dashboard");
+                        }
+                    }
+                    "settings" => {
+                        if let Some(window) = app.get_webview_window("main") {
+                            let _ = window.show();
+                            let _ = window.set_focus();
+                            let _ = window.emit("navigate-tab", "settings");
                         }
                     }
                     "quit" => {

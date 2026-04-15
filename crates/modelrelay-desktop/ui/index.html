@@ -10,16 +10,44 @@
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       background: #0f1117;
       color: #e4e4e7;
-      padding: 24px;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
     }
-    h1 { font-size: 20px; font-weight: 600; margin-bottom: 16px; }
-    .status-card {
+
+    /* Tabs */
+    .tab-bar {
+      display: flex;
+      background: #1a1b23;
+      border-bottom: 1px solid #27272a;
+      padding: 0 16px;
+    }
+    .tab {
+      padding: 12px 20px;
+      font-size: 13px;
+      font-weight: 500;
+      color: #71717a;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: color 0.15s, border-color 0.15s;
+      user-select: none;
+    }
+    .tab:hover { color: #a1a1aa; }
+    .tab.active { color: #e4e4e7; border-bottom-color: #6366f1; }
+
+    .tab-content { display: none; padding: 24px; flex: 1; overflow-y: auto; }
+    .tab-content.active { display: block; }
+
+    /* Cards */
+    .card {
       background: #1a1b23;
       border: 1px solid #27272a;
       border-radius: 8px;
       padding: 16px;
       margin-bottom: 16px;
     }
+
+    /* Status */
     .status-indicator {
       display: inline-block;
       width: 10px;
@@ -32,7 +60,6 @@
     .label { font-size: 12px; color: #71717a; text-transform: uppercase; letter-spacing: 0.05em; }
     .value { font-size: 14px; margin-top: 4px; }
     .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
-    #models { margin-top: 12px; }
     .model-tag {
       display: inline-block;
       background: #27272a;
@@ -41,31 +68,213 @@
       font-size: 12px;
       margin: 2px;
     }
+    #models { margin-top: 12px; }
+
+    /* Worker toggle */
+    .worker-toggle {
+      margin-top: 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .btn {
+      padding: 8px 20px;
+      border-radius: 6px;
+      border: none;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.15s, opacity 0.15s;
+    }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-start { background: #22c55e; color: #0f1117; }
+    .btn-start:hover:not(:disabled) { background: #16a34a; }
+    .btn-stop { background: #ef4444; color: #fff; }
+    .btn-stop:hover:not(:disabled) { background: #dc2626; }
+
+    /* Form */
+    .form-group { margin-bottom: 16px; }
+    .form-group label {
+      display: block;
+      font-size: 12px;
+      font-weight: 500;
+      color: #a1a1aa;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 6px;
+    }
+    .form-group input[type="text"],
+    .form-group input[type="password"],
+    .form-group input[type="number"] {
+      width: 100%;
+      padding: 8px 12px;
+      background: #0f1117;
+      border: 1px solid #27272a;
+      border-radius: 6px;
+      color: #e4e4e7;
+      font-size: 14px;
+      font-family: inherit;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .form-group input:focus { border-color: #6366f1; }
+
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+    .checkbox-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .checkbox-group input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      accent-color: #6366f1;
+    }
+    .checkbox-group label {
+      font-size: 14px;
+      color: #e4e4e7;
+      cursor: pointer;
+    }
+
+    .btn-save { background: #6366f1; color: #fff; width: 100%; padding: 10px; font-size: 14px; }
+    .btn-save:hover:not(:disabled) { background: #4f46e5; }
+
+    .save-feedback {
+      text-align: center;
+      font-size: 13px;
+      color: #22c55e;
+      margin-top: 8px;
+      min-height: 20px;
+    }
+
+    .error-text { font-size: 13px; color: #ef4444; margin-top: 8px; }
   </style>
 </head>
 <body>
-  <h1>ModelRelay</h1>
+  <div class="tab-bar">
+    <div class="tab active" data-tab="dashboard">Dashboard</div>
+    <div class="tab" data-tab="settings">Settings</div>
+  </div>
 
-  <div class="status-card">
-    <div>
-      <span id="statusDot" class="status-indicator"></span>
-      <span id="statusText">Disconnected</span>
-    </div>
-    <div class="grid">
+  <!-- Dashboard Tab -->
+  <div id="tab-dashboard" class="tab-content active">
+    <div class="card">
       <div>
-        <div class="label">Relay</div>
-        <div class="value" id="relayUrl">-</div>
+        <span id="statusDot" class="status-indicator"></span>
+        <span id="statusText">Disconnected</span>
       </div>
-      <div>
-        <div class="label">Active Requests</div>
-        <div class="value" id="activeRequests">0</div>
+      <div class="grid">
+        <div>
+          <div class="label">Relay</div>
+          <div class="value" id="relayUrl">-</div>
+        </div>
+        <div>
+          <div class="label">Active Requests</div>
+          <div class="value" id="activeRequests">0</div>
+        </div>
+      </div>
+      <div id="models"></div>
+      <div id="errorDisplay"></div>
+    </div>
+
+    <div class="card">
+      <div class="label" style="margin-bottom: 8px;">Worker Control</div>
+      <div class="worker-toggle">
+        <button id="startBtn" class="btn btn-start" onclick="doStart()">Start Worker</button>
+        <button id="stopBtn" class="btn btn-stop" onclick="doStop()" disabled>Stop Worker</button>
       </div>
     </div>
-    <div id="models"></div>
+  </div>
+
+  <!-- Settings Tab -->
+  <div id="tab-settings" class="tab-content">
+    <div class="card">
+      <div class="form-group">
+        <label for="backendUrl">Backend URL</label>
+        <input type="text" id="backendUrl" placeholder="http://localhost:11434">
+      </div>
+      <div class="form-group">
+        <label for="relayUrlSetting">Relay Server URL</label>
+        <input type="text" id="relayUrlSetting" placeholder="https://api.modelrelay.io">
+      </div>
+      <div class="form-group">
+        <label for="workerSecret">Worker Secret / API Key</label>
+        <input type="password" id="workerSecret" placeholder="Enter your worker secret">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="provider">Provider</label>
+          <input type="text" id="provider" placeholder="default">
+        </div>
+        <div class="form-group">
+          <label for="workerName">Worker Name</label>
+          <input type="text" id="workerName" placeholder="my-worker">
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="modelsInput">Models (comma-separated)</label>
+        <input type="text" id="modelsInput" placeholder="* (all models)">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="maxConcurrent">Max Concurrent</label>
+          <input type="number" id="maxConcurrent" min="1" max="64" placeholder="4">
+        </div>
+        <div class="form-group">
+          <label for="pollInterval">Poll Interval (seconds)</label>
+          <input type="number" id="pollInterval" min="1" max="3600" placeholder="30">
+        </div>
+      </div>
+      <div class="checkbox-group">
+        <input type="checkbox" id="autoStart">
+        <label for="autoStart">Auto-start worker on launch</label>
+      </div>
+      <button class="btn btn-save" onclick="doSave()">Save Settings</button>
+      <div id="saveFeedback" class="save-feedback"></div>
+    </div>
   </div>
 
   <script>
     const { invoke } = window.__TAURI__.core;
+    const { getCurrentWebviewWindow } = window.__TAURI__.webviewWindow;
+
+    // Tab switching
+    document.querySelectorAll(".tab").forEach(tab => {
+      tab.addEventListener("click", () => {
+        document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+        document.querySelectorAll(".tab-content").forEach(c => c.classList.remove("active"));
+        tab.classList.add("active");
+        document.getElementById("tab-" + tab.dataset.tab).classList.add("active");
+        if (tab.dataset.tab === "settings") loadSettings();
+      });
+    });
+
+    // Open to the correct tab from URL params (used by tray menu)
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("tab") === "settings") {
+      document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+      document.querySelectorAll(".tab-content").forEach(c => c.classList.remove("active"));
+      document.querySelector('[data-tab="settings"]').classList.add("active");
+      document.getElementById("tab-settings").classList.add("active");
+    }
+
+    // Listen for navigate-tab events from Rust
+    try {
+      getCurrentWebviewWindow().listen("navigate-tab", (event) => {
+        const tabName = event.payload;
+        const tabEl = document.querySelector('[data-tab="' + tabName + '"]');
+        if (tabEl) {
+          tabEl.click();
+        }
+      });
+    } catch (e) {
+      console.error("Failed to set up event listener:", e);
+    }
+
+    // Dashboard: refresh status
+    let workerRunning = false;
 
     async function refreshStatus() {
       try {
@@ -80,15 +289,103 @@
         const modelsEl = document.getElementById("models");
         if (status.models.length > 0) {
           modelsEl.innerHTML = '<div class="label">Models</div>' +
-            status.models.map(m => '<span class="model-tag">' + m + '</span>').join("");
+            status.models.map(m => '<span class="model-tag">' + escapeHtml(m) + '</span>').join("");
         } else {
           modelsEl.innerHTML = "";
         }
+
+        const errorEl = document.getElementById("errorDisplay");
+        if (status.error) {
+          errorEl.innerHTML = '<div class="error-text">' + escapeHtml(status.error) + '</div>';
+        } else {
+          errorEl.innerHTML = "";
+        }
+
+        workerRunning = status.connected;
+        document.getElementById("startBtn").disabled = workerRunning;
+        document.getElementById("stopBtn").disabled = !workerRunning;
       } catch (e) {
         console.error("Failed to get status:", e);
       }
     }
 
+    function escapeHtml(str) {
+      const div = document.createElement("div");
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    async function doStart() {
+      try {
+        document.getElementById("startBtn").disabled = true;
+        await invoke("start_worker");
+        await refreshStatus();
+      } catch (e) {
+        alert("Failed to start worker: " + e);
+        document.getElementById("startBtn").disabled = false;
+      }
+    }
+
+    async function doStop() {
+      try {
+        document.getElementById("stopBtn").disabled = true;
+        await invoke("stop_worker");
+        await refreshStatus();
+      } catch (e) {
+        alert("Failed to stop worker: " + e);
+        document.getElementById("stopBtn").disabled = false;
+      }
+    }
+
+    // Settings: load and save
+    async function loadSettings() {
+      try {
+        const s = await invoke("get_settings");
+        document.getElementById("backendUrl").value = s.backend_url;
+        document.getElementById("relayUrlSetting").value = s.relay_url;
+        document.getElementById("workerSecret").value = s.worker_secret;
+        document.getElementById("provider").value = s.provider;
+        document.getElementById("workerName").value = s.worker_name;
+        document.getElementById("modelsInput").value = s.models.join(", ");
+        document.getElementById("maxConcurrent").value = s.max_concurrent;
+        document.getElementById("pollInterval").value = s.poll_interval_secs;
+        document.getElementById("autoStart").checked = s.auto_start;
+      } catch (e) {
+        console.error("Failed to load settings:", e);
+      }
+    }
+
+    async function doSave() {
+      const feedback = document.getElementById("saveFeedback");
+      feedback.textContent = "";
+      try {
+        const modelsRaw = document.getElementById("modelsInput").value;
+        const models = modelsRaw.split(",").map(m => m.trim()).filter(m => m.length > 0);
+        if (models.length === 0) models.push("*");
+
+        const settings = {
+          backend_url: document.getElementById("backendUrl").value || "http://localhost:11434",
+          relay_url: document.getElementById("relayUrlSetting").value || "https://api.modelrelay.io",
+          worker_secret: document.getElementById("workerSecret").value,
+          provider: document.getElementById("provider").value || "default",
+          worker_name: document.getElementById("workerName").value || "my-worker",
+          models: models,
+          max_concurrent: parseInt(document.getElementById("maxConcurrent").value, 10) || 4,
+          auto_start: document.getElementById("autoStart").checked,
+          poll_interval_secs: parseInt(document.getElementById("pollInterval").value, 10) || 30,
+        };
+
+        await invoke("save_settings", { settings });
+        feedback.textContent = "Settings saved!";
+        setTimeout(() => { feedback.textContent = ""; }, 3000);
+      } catch (e) {
+        feedback.textContent = "Error: " + e;
+        feedback.style.color = "#ef4444";
+        setTimeout(() => { feedback.style.color = "#22c55e"; }, 3000);
+      }
+    }
+
+    // Initial load
     refreshStatus();
     setInterval(refreshStatus, 5000);
   </script>
