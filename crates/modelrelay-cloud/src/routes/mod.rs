@@ -125,8 +125,7 @@ async fn session_guard(request: Request, next: Next) -> Response {
     let path = request.uri().path().to_owned();
 
     // Let exempt routes through without checking for a session.
-    let exempt = SESSION_EXEMPT_ROUTES.contains(&path.as_str())
-        || path.starts_with("/webhook/");
+    let exempt = SESSION_EXEMPT_ROUTES.contains(&path.as_str()) || path.starts_with("/webhook/");
 
     if !exempt {
         let has_session = request
