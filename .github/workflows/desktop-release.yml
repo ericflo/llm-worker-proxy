@@ -1,0 +1,61 @@
+name: Desktop Release
+
+on:
+  push:
+    tags:
+      - "desktop-v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build desktop (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            label: linux
+          - os: macos-latest
+            label: macos
+          - os: windows-latest
+            label: windows
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Tauri system dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev patchelf
+
+      - name: Install Rust toolchain
+        run: rustup show
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: desktop-${{ matrix.label }}
+
+      - name: Build and bundle with Tauri
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: crates/modelrelay-desktop
+          tagName: ${{ github.ref_name }}
+          releaseName: "ModelRelay Desktop ${{ github.ref_name }}"
+          releaseBody: |
+            ## ModelRelay Desktop ${{ github.ref_name }}
+
+            Download the installer for your platform below.
+
+            | Platform | File |
+            |----------|------|
+            | Linux | `.deb`, `.AppImage` |
+            | macOS | `.dmg` |
+            | Windows | `.msi`, `.exe` |
+          releaseDraft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
