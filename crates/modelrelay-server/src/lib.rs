@@ -2363,7 +2363,7 @@ mod tests {
 
         match result {
             SubmissionOutcome::Dispatched(d) => assert_eq!(d.worker_id, openai),
-            other => panic!("expected Dispatched, got {:?}", other),
+            other => panic!("expected Dispatched, got {other:?}"),
         }
     }
 
@@ -2424,7 +2424,7 @@ mod tests {
 
         match result {
             SubmissionOutcome::Dispatched(d) => assert_eq!(d.worker_id, openai),
-            other => panic!("expected Dispatched, got {:?}", other),
+            other => panic!("expected Dispatched, got {other:?}"),
         }
     }
 
@@ -2488,7 +2488,7 @@ mod tests {
 
         match result {
             SubmissionOutcome::Dispatched(d) => assert_eq!(d.worker_id, anthropic),
-            other => panic!("expected Dispatched to anthropic, got {:?}", other),
+            other => panic!("expected Dispatched to anthropic, got {other:?}"),
         }
     }
 
@@ -2515,7 +2515,7 @@ mod tests {
 
         match result {
             SubmissionOutcome::Dispatched(d) => assert_eq!(d.worker_id, openai),
-            other => panic!("expected Dispatched to openai fallback, got {:?}", other),
+            other => panic!("expected Dispatched to openai fallback, got {other:?}"),
         }
     }
 
@@ -2545,7 +2545,7 @@ mod tests {
 
         match result {
             SubmissionOutcome::Dispatched(d) => assert_eq!(d.worker_id, anthropic),
-            other => panic!("expected fallback Dispatched to anthropic, got {:?}", other),
+            other => panic!("expected fallback Dispatched to anthropic, got {other:?}"),
         }
     }
 
@@ -2572,7 +2572,7 @@ mod tests {
 
         match result {
             SubmissionOutcome::Dispatched(d) => assert_eq!(d.worker_id, anthropic),
-            other => panic!("expected fallback dispatch, got {:?}", other),
+            other => panic!("expected fallback dispatch, got {other:?}"),
         }
     }
 
@@ -2640,7 +2640,7 @@ mod tests {
                 d.worker_id, anthropic,
                 "should dispatch to anthropic (preferred in order)"
             ),
-            other => panic!("expected Dispatched, got {:?}", other),
+            other => panic!("expected Dispatched, got {other:?}"),
         }
 
         // Fill anthropic, next request should go to openai
@@ -2665,7 +2665,7 @@ mod tests {
                     "should dispatch to anthropic or openai"
                 );
             }
-            other => panic!("expected Dispatched, got {:?}", other),
+            other => panic!("expected Dispatched, got {other:?}"),
         }
     }
 
@@ -2674,7 +2674,7 @@ mod tests {
     #[test]
     fn routing_ignore_and_order_combined() {
         let mut core = ProxyServerCore::new();
-        let openai = core
+        let _openai = core
             .register_worker(
                 "openai",
                 register_message("openai-1", &["gpt-4"], 2, Some(0)),
@@ -2705,7 +2705,7 @@ mod tests {
 
         match result {
             SubmissionOutcome::Dispatched(d) => assert_eq!(d.worker_id, azure),
-            other => panic!("expected Dispatched to azure, got {:?}", other),
+            other => panic!("expected Dispatched to azure, got {other:?}"),
         }
     }
 
@@ -2735,7 +2735,7 @@ mod tests {
 
         match result {
             SubmissionOutcome::Dispatched(d) => assert_eq!(d.worker_id, worker_id),
-            other => panic!("expected normal dispatch, got {:?}", other),
+            other => panic!("expected normal dispatch, got {other:?}"),
         }
     }
 
@@ -2770,7 +2770,7 @@ mod tests {
 
         match result {
             SubmissionOutcome::Dispatched(d) => assert_eq!(d.worker_id, embeddings_worker),
-            other => panic!("expected Dispatched, got {:?}", other),
+            other => panic!("expected Dispatched, got {other:?}"),
         }
     }
 
@@ -2840,7 +2840,7 @@ mod tests {
                     // Finish the request so the next one can dispatch
                     core.finish_request(&worker, &d.request_id);
                 }
-                other => panic!("expected Dispatched for path {}, got {:?}", path, other),
+                other => panic!("expected Dispatched for path {path}, got {other:?}"),
             }
         }
     }
@@ -2895,10 +2895,7 @@ mod tests {
 
         match result {
             SubmissionOutcome::Dispatched(d) => assert_eq!(d.worker_id, openai_embed),
-            other => panic!(
-                "expected Dispatched to openai embed worker, got {:?}",
-                other
-            ),
+            other => panic!("expected Dispatched to openai embed worker, got {other:?}"),
         }
     }
 
@@ -2934,7 +2931,7 @@ mod tests {
                     assert_eq!(d.worker_id, worker);
                     core.finish_request(&worker, &d.request_id);
                 }
-                other => panic!("expected Dispatched for path {}, got {:?}", path, other),
+                other => panic!("expected Dispatched for path {path}, got {other:?}"),
             }
         }
 
@@ -2972,7 +2969,7 @@ mod tests {
 
         match result {
             SubmissionOutcome::Dispatched(d) => assert_eq!(d.worker_id, worker),
-            other => panic!("expected Dispatched, got {:?}", other),
+            other => panic!("expected Dispatched, got {other:?}"),
         }
     }
 }
