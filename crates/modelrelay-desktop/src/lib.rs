@@ -54,6 +54,7 @@ pub struct WorkerManager {
 
 impl WorkerManager {
     /// Create a new `WorkerManager`, loading persisted settings from `settings_path` if available.
+    #[must_use]
     pub fn new(settings_path: PathBuf) -> Self {
         let settings = match std::fs::read_to_string(&settings_path) {
             Ok(json) => serde_json::from_str(&json).unwrap_or_default(),
@@ -81,6 +82,8 @@ impl WorkerManager {
         self.settings.lock().await.clone()
     }
 
+    /// # Errors
+    /// Returns an error if settings cannot be persisted to disk.
     pub async fn save_settings(&self, new_settings: AppSettings) -> Result<(), String> {
         self.persist_settings(&new_settings)?;
         *self.settings.lock().await = new_settings;
@@ -98,6 +101,9 @@ impl WorkerManager {
 
     /// Start the worker daemon in a background tokio task.
     /// If already running, stops the existing worker first.
+    ///
+    /// # Errors
+    /// Returns an error if the worker secret is empty.
     pub async fn start_worker(&self) -> Result<(), String> {
         self.stop_worker().await;
 
@@ -125,8 +131,8 @@ impl WorkerManager {
         {
             let mut s = status.lock().await;
             s.connected = true;
-            s.relay_url = settings.relay_url.clone();
-            s.models = config.models.clone();
+            s.relay_url.clone_from(&settings.relay_url);
+            s.models.clone_from(&config.models);
             s.error = None;
         }
 
