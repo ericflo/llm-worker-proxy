@@ -935,9 +935,16 @@ pub fn setup_wizard_page_with_config(cloud_config: Option<&CloudWizardConfig>) -
     let steps_html = r##"
     <!-- Step 1: Platform -->
     <div class="wizard-step active" data-step="1">
+      <div class="wizard-card" style="border-left:3px solid #7c3aed;margin-bottom:16px;">
+        <h2 style="display:flex;align-items:center;gap:10px;">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+          Prefer a desktop app?
+        </h2>
+        <p>Skip the CLI setup &mdash; <a href="https://github.com/ericflo/modelrelay/releases/latest" target="_blank" style="color:#7c3aed;font-weight:600;">download the ModelRelay desktop app</a> for Windows, macOS, or Linux. It runs in your system tray and handles everything below automatically.</p>
+      </div>
       <div class="wizard-card">
         <h2><span class="step-num">1</span> Choose your platform</h2>
-        <p>Select the OS where you'll run inference. We'll tailor the next steps accordingly.</p>
+        <p>Or continue with the CLI setup. Select the OS where you'll run inference:</p>
         <div class="platform-tabs">
           <div class="tab" data-platform="macos" onclick="window.__setPlatform('macos')">macOS</div>
           <div class="tab" data-platform="windows" onclick="window.__setPlatform('windows')">Windows</div>
