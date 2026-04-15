@@ -1545,7 +1545,7 @@ mod tests {
         ProxyServerCore, QueuedAssignment, RequestFailure, RequestFailureReason, RequestState,
         SubmissionOutcome, WorkerCancelSignal, WorkerDisconnectOutcome,
     };
-    use modelrelay_protocol::{ModelsUpdateMessage, RegisterMessage};
+    use modelrelay_protocol::{HeaderMap, ModelsUpdateMessage, ProviderRouting, RegisterMessage};
     use std::time::Duration;
 
     fn register_message(
@@ -2289,5 +2289,701 @@ mod tests {
         );
         assert!(models.contains(&"gpt-4".to_string()));
         assert!(models.contains(&"gpt-3.5".to_string()));
+    }
+
+    // ---- helper for workers with endpoint_prefixes ----
+
+    fn register_message_with_endpoints(
+        worker_name: &str,
+        models: &[&str],
+        max_concurrent: u32,
+        current_load: Option<u32>,
+        endpoint_prefixes: &[&str],
+    ) -> RegisterMessage {
+        RegisterMessage {
+            worker_name: worker_name.to_string(),
+            models: models.iter().map(|model| (*model).to_string()).collect(),
+            max_concurrent,
+            protocol_version: Some("2026-04-bridge-v1".to_string()),
+            current_load,
+            endpoint_prefixes: endpoint_prefixes
+                .iter()
+                .map(|ep| (*ep).to_string())
+                .collect(),
+        }
+    }
+
+    /// Helper: submit a request with provider routing through the transport API.
+    fn submit_with_routing(
+        core: &mut ProxyServerCore,
+        provider: &str,
+        model: &str,
+        routing: ProviderRouting,
+    ) -> SubmissionOutcome {
+        core.submit_transport_request(
+            provider,
+            model,
+            "/v1/chat/completions",
+            "POST",
+            false,
+            String::new(),
+            HeaderMap::new(),
+            Some(routing),
+        )
+    }
+
+    // ---- Provider Routing: only ----
+
+    #[test]
+    fn routing_only_dispatches_to_listed_providers() {
+        let mut core = ProxyServerCore::new();
+        let _anthropic = core
+            .register_worker(
+                "anthropic",
+                register_message("anthropic-1", &["gpt-4"], 2, Some(0)),
+            )
+            .worker_id;
+        let openai = core
+            .register_worker(
+                "openai",
+                register_message("openai-1", &["gpt-4"], 2, Some(0)),
+            )
+            .worker_id;
+
+        let result = submit_with_routing(
+            &mut core,
+            "openai",
+            "gpt-4",
+            ProviderRouting {
+                only: Some(vec!["openai".to_string()]),
+                allow_fallbacks: Some(false),
+                ..Default::default()
+            },
+        );
+
+        match result {
+            SubmissionOutcome::Dispatched(d) => assert_eq!(d.worker_id, openai),
+            other => panic!("expected Dispatched, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn routing_only_rejects_when_no_listed_provider_available_and_no_fallbacks() {
+        let mut core = ProxyServerCore::new();
+        core.register_worker(
+            "anthropic",
+            register_message("anthropic-1", &["gpt-4"], 2, Some(0)),
+        );
+
+        let result = submit_with_routing(
+            &mut core,
+            "openai",
+            "gpt-4",
+            ProviderRouting {
+                only: Some(vec!["openai".to_string()]),
+                allow_fallbacks: Some(false),
+                ..Default::default()
+            },
+        );
+
+        // No openai worker exists, fallbacks disabled → should queue or reject (no workers match)
+        assert!(
+            !matches!(result, SubmissionOutcome::Dispatched(_)),
+            "should not dispatch to anthropic when only=openai and allow_fallbacks=false"
+        );
+    }
+
+    // ---- Provider Routing: ignore ----
+
+    #[test]
+    fn routing_ignore_skips_specified_providers() {
+        let mut core = ProxyServerCore::new();
+        let _anthropic = core
+            .register_worker(
+                "anthropic",
+                register_message("anthropic-1", &["gpt-4"], 2, Some(0)),
+            )
+            .worker_id;
+        let openai = core
+            .register_worker(
+                "openai",
+                register_message("openai-1", &["gpt-4"], 2, Some(0)),
+            )
+            .worker_id;
+
+        let result = submit_with_routing(
+            &mut core,
+            "openai",
+            "gpt-4",
+            ProviderRouting {
+                ignore: Some(vec!["anthropic".to_string()]),
+                allow_fallbacks: Some(false),
+                ..Default::default()
+            },
+        );
+
+        match result {
+            SubmissionOutcome::Dispatched(d) => assert_eq!(d.worker_id, openai),
+            other => panic!("expected Dispatched, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn routing_ignore_all_providers_rejects_without_fallbacks() {
+        let mut core = ProxyServerCore::new();
+        core.register_worker(
+            "openai",
+            register_message("openai-1", &["gpt-4"], 2, Some(0)),
+        );
+        core.register_worker(
+            "anthropic",
+            register_message("anthropic-1", &["gpt-4"], 2, Some(0)),
+        );
+
+        let result = submit_with_routing(
+            &mut core,
+            "openai",
+            "gpt-4",
+            ProviderRouting {
+                ignore: Some(vec!["openai".to_string(), "anthropic".to_string()]),
+                allow_fallbacks: Some(false),
+                ..Default::default()
+            },
+        );
+
+        assert!(
+            !matches!(result, SubmissionOutcome::Dispatched(_)),
+            "ignoring all providers with no fallbacks should not dispatch"
+        );
+    }
+
+    // ---- Provider Routing: order ----
+
+    #[test]
+    fn routing_order_prefers_first_listed_provider() {
+        let mut core = ProxyServerCore::new();
+        let _openai = core
+            .register_worker(
+                "openai",
+                register_message("openai-1", &["gpt-4"], 2, Some(0)),
+            )
+            .worker_id;
+        let anthropic = core
+            .register_worker(
+                "anthropic",
+                register_message("anthropic-1", &["gpt-4"], 2, Some(0)),
+            )
+            .worker_id;
+
+        // Prefer anthropic first
+        let result = submit_with_routing(
+            &mut core,
+            "openai",
+            "gpt-4",
+            ProviderRouting {
+                order: Some(vec!["anthropic".to_string(), "openai".to_string()]),
+                ..Default::default()
+            },
+        );
+
+        match result {
+            SubmissionOutcome::Dispatched(d) => assert_eq!(d.worker_id, anthropic),
+            other => panic!("expected Dispatched to anthropic, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn routing_order_falls_through_when_preferred_unavailable() {
+        let mut core = ProxyServerCore::new();
+        let openai = core
+            .register_worker(
+                "openai",
+                register_message("openai-1", &["gpt-4"], 2, Some(0)),
+            )
+            .worker_id;
+
+        // Prefer azure (no workers), then openai
+        let result = submit_with_routing(
+            &mut core,
+            "openai",
+            "gpt-4",
+            ProviderRouting {
+                order: Some(vec!["azure".to_string(), "openai".to_string()]),
+                ..Default::default()
+            },
+        );
+
+        match result {
+            SubmissionOutcome::Dispatched(d) => assert_eq!(d.worker_id, openai),
+            other => panic!("expected Dispatched to openai fallback, got {:?}", other),
+        }
+    }
+
+    // ---- Provider Routing: allow_fallbacks ----
+
+    #[test]
+    fn routing_allow_fallbacks_true_falls_back_to_any_provider() {
+        let mut core = ProxyServerCore::new();
+        let anthropic = core
+            .register_worker(
+                "anthropic",
+                register_message("anthropic-1", &["gpt-4"], 2, Some(0)),
+            )
+            .worker_id;
+
+        // Only want "azure" but allow fallbacks (default true)
+        let result = submit_with_routing(
+            &mut core,
+            "openai",
+            "gpt-4",
+            ProviderRouting {
+                only: Some(vec!["azure".to_string()]),
+                allow_fallbacks: Some(true),
+                ..Default::default()
+            },
+        );
+
+        match result {
+            SubmissionOutcome::Dispatched(d) => assert_eq!(d.worker_id, anthropic),
+            other => panic!(
+                "expected fallback Dispatched to anthropic, got {:?}",
+                other
+            ),
+        }
+    }
+
+    #[test]
+    fn routing_allow_fallbacks_default_true() {
+        let mut core = ProxyServerCore::new();
+        let anthropic = core
+            .register_worker(
+                "anthropic",
+                register_message("anthropic-1", &["gpt-4"], 2, Some(0)),
+            )
+            .worker_id;
+
+        // Only want "azure", allow_fallbacks not set (defaults to true)
+        let result = submit_with_routing(
+            &mut core,
+            "openai",
+            "gpt-4",
+            ProviderRouting {
+                only: Some(vec!["azure".to_string()]),
+                ..Default::default()
+            },
+        );
+
+        match result {
+            SubmissionOutcome::Dispatched(d) => assert_eq!(d.worker_id, anthropic),
+            other => panic!("expected fallback dispatch, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn routing_allow_fallbacks_false_rejects() {
+        let mut core = ProxyServerCore::new();
+        core.register_worker(
+            "anthropic",
+            register_message("anthropic-1", &["gpt-4"], 2, Some(0)),
+        );
+
+        let result = submit_with_routing(
+            &mut core,
+            "openai",
+            "gpt-4",
+            ProviderRouting {
+                only: Some(vec!["azure".to_string()]),
+                allow_fallbacks: Some(false),
+                ..Default::default()
+            },
+        );
+
+        assert!(
+            !matches!(result, SubmissionOutcome::Dispatched(_)),
+            "should not dispatch when only=azure, no azure workers, fallbacks=false"
+        );
+    }
+
+    // ---- Provider Routing: combined only + order ----
+
+    #[test]
+    fn routing_only_and_order_combined() {
+        let mut core = ProxyServerCore::new();
+        let openai = core
+            .register_worker(
+                "openai",
+                register_message("openai-1", &["gpt-4"], 2, Some(0)),
+            )
+            .worker_id;
+        let anthropic = core
+            .register_worker(
+                "anthropic",
+                register_message("anthropic-1", &["gpt-4"], 2, Some(0)),
+            )
+            .worker_id;
+        let _azure = core
+            .register_worker(
+                "azure",
+                register_message("azure-1", &["gpt-4"], 2, Some(0)),
+            )
+            .worker_id;
+
+        // Only openai and anthropic, prefer anthropic first
+        let result = submit_with_routing(
+            &mut core,
+            "openai",
+            "gpt-4",
+            ProviderRouting {
+                only: Some(vec!["openai".to_string(), "anthropic".to_string()]),
+                order: Some(vec!["anthropic".to_string(), "openai".to_string()]),
+                allow_fallbacks: Some(false),
+                ..Default::default()
+            },
+        );
+
+        match result {
+            SubmissionOutcome::Dispatched(d) => assert_eq!(
+                d.worker_id, anthropic,
+                "should dispatch to anthropic (preferred in order)"
+            ),
+            other => panic!("expected Dispatched, got {:?}", other),
+        }
+
+        // Fill anthropic, next request should go to openai
+        let result2 = submit_with_routing(
+            &mut core,
+            "openai",
+            "gpt-4",
+            ProviderRouting {
+                only: Some(vec!["openai".to_string(), "anthropic".to_string()]),
+                order: Some(vec!["anthropic".to_string(), "openai".to_string()]),
+                allow_fallbacks: Some(false),
+                ..Default::default()
+            },
+        );
+
+        match result2 {
+            SubmissionOutcome::Dispatched(d) => {
+                // anthropic has load=1 now, still has capacity (max=2),
+                // so order prefers anthropic again
+                assert!(
+                    d.worker_id == anthropic || d.worker_id == openai,
+                    "should dispatch to anthropic or openai"
+                );
+            }
+            other => panic!("expected Dispatched, got {:?}", other),
+        }
+    }
+
+    // ---- Provider Routing: ignore + order combined ----
+
+    #[test]
+    fn routing_ignore_and_order_combined() {
+        let mut core = ProxyServerCore::new();
+        let openai = core
+            .register_worker(
+                "openai",
+                register_message("openai-1", &["gpt-4"], 2, Some(0)),
+            )
+            .worker_id;
+        let _anthropic = core
+            .register_worker(
+                "anthropic",
+                register_message("anthropic-1", &["gpt-4"], 2, Some(0)),
+            )
+            .worker_id;
+        let azure = core
+            .register_worker(
+                "azure",
+                register_message("azure-1", &["gpt-4"], 2, Some(0)),
+            )
+            .worker_id;
+
+        // Ignore anthropic, prefer azure first then openai
+        let result = submit_with_routing(
+            &mut core,
+            "openai",
+            "gpt-4",
+            ProviderRouting {
+                ignore: Some(vec!["anthropic".to_string()]),
+                order: Some(vec!["azure".to_string(), "openai".to_string()]),
+                allow_fallbacks: Some(false),
+                ..Default::default()
+            },
+        );
+
+        match result {
+            SubmissionOutcome::Dispatched(d) => assert_eq!(d.worker_id, azure),
+            other => panic!("expected Dispatched to azure, got {:?}", other),
+        }
+    }
+
+    // ---- Backward compat: no routing ----
+
+    #[test]
+    fn no_routing_dispatches_normally() {
+        let mut core = ProxyServerCore::new();
+        let worker_id = core
+            .register_worker(
+                "openai",
+                register_message("openai-1", &["gpt-4"], 2, Some(0)),
+            )
+            .worker_id;
+
+        // submit_transport_request with None routing
+        let result = core.submit_transport_request(
+            "openai",
+            "gpt-4",
+            "/v1/chat/completions",
+            "POST",
+            false,
+            String::new(),
+            HeaderMap::new(),
+            None,
+        );
+
+        match result {
+            SubmissionOutcome::Dispatched(d) => assert_eq!(d.worker_id, worker_id),
+            other => panic!("expected normal dispatch, got {:?}", other),
+        }
+    }
+
+    // ---- Wildcard proxy: endpoint prefix routing ----
+
+    #[test]
+    fn endpoint_prefix_worker_handles_matching_paths() {
+        let mut core = ProxyServerCore::new();
+        let embeddings_worker = core
+            .register_worker(
+                "openai",
+                register_message_with_endpoints(
+                    "embed-worker",
+                    &["text-embedding-3-small"],
+                    2,
+                    Some(0),
+                    &["/v1/embeddings"],
+                ),
+            )
+            .worker_id;
+
+        let result = core.submit_transport_request(
+            "openai",
+            "text-embedding-3-small",
+            "/v1/embeddings",
+            "POST",
+            false,
+            String::new(),
+            HeaderMap::new(),
+            None,
+        );
+
+        match result {
+            SubmissionOutcome::Dispatched(d) => assert_eq!(d.worker_id, embeddings_worker),
+            other => panic!("expected Dispatched, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn endpoint_prefix_worker_rejects_non_matching_paths() {
+        let mut core = ProxyServerCore::new();
+        // Worker only handles /v1/embeddings
+        core.register_worker(
+            "openai",
+            register_message_with_endpoints(
+                "embed-worker",
+                &["gpt-4"],
+                2,
+                Some(0),
+                &["/v1/embeddings"],
+            ),
+        );
+
+        // Submit to /v1/chat/completions — should not match the embeddings worker
+        let result = core.submit_transport_request(
+            "openai",
+            "gpt-4",
+            "/v1/chat/completions",
+            "POST",
+            false,
+            String::new(),
+            HeaderMap::new(),
+            None,
+        );
+
+        assert!(
+            !matches!(result, SubmissionOutcome::Dispatched(_)),
+            "embeddings-only worker should not handle /v1/chat/completions"
+        );
+    }
+
+    #[test]
+    fn empty_endpoint_prefixes_accepts_any_path() {
+        let mut core = ProxyServerCore::new();
+        let worker = core
+            .register_worker(
+                "openai",
+                register_message_with_endpoints("gpu-a", &["gpt-4"], 2, Some(0), &[]),
+            )
+            .worker_id;
+
+        // No endpoint_prefixes means any path is accepted (legacy behavior)
+        for path in &[
+            "/v1/chat/completions",
+            "/v1/embeddings",
+            "/v1/models",
+            "/custom/path",
+        ] {
+            let result = core.submit_transport_request(
+                "openai",
+                "gpt-4",
+                *path,
+                "POST",
+                false,
+                String::new(),
+                HeaderMap::new(),
+                None,
+            );
+            match result {
+                SubmissionOutcome::Dispatched(d) => {
+                    assert_eq!(d.worker_id, worker);
+                    // Finish the request so the next one can dispatch
+                    core.finish_request(&worker, &d.request_id);
+                }
+                other => panic!("expected Dispatched for path {}, got {:?}", path, other),
+            }
+        }
+    }
+
+    #[test]
+    fn routing_with_endpoint_prefix_combined() {
+        let mut core = ProxyServerCore::new();
+
+        // Embeddings worker for openai
+        let openai_embed = core
+            .register_worker(
+                "openai",
+                register_message_with_endpoints(
+                    "openai-embed",
+                    &["text-embedding-3-small"],
+                    2,
+                    Some(0),
+                    &["/v1/embeddings"],
+                ),
+            )
+            .worker_id;
+
+        // Embeddings worker for anthropic
+        let _anthropic_embed = core
+            .register_worker(
+                "anthropic",
+                register_message_with_endpoints(
+                    "anthropic-embed",
+                    &["text-embedding-3-small"],
+                    2,
+                    Some(0),
+                    &["/v1/embeddings"],
+                ),
+            )
+            .worker_id;
+
+        // Route to openai only, via /v1/embeddings endpoint
+        let result = core.submit_transport_request(
+            "openai",
+            "text-embedding-3-small",
+            "/v1/embeddings",
+            "POST",
+            false,
+            String::new(),
+            HeaderMap::new(),
+            Some(ProviderRouting {
+                only: Some(vec!["openai".to_string()]),
+                allow_fallbacks: Some(false),
+                ..Default::default()
+            }),
+        );
+
+        match result {
+            SubmissionOutcome::Dispatched(d) => assert_eq!(d.worker_id, openai_embed),
+            other => panic!("expected Dispatched to openai embed worker, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn multiple_endpoint_prefixes_worker() {
+        let mut core = ProxyServerCore::new();
+        let worker = core
+            .register_worker(
+                "openai",
+                register_message_with_endpoints(
+                    "multi-worker",
+                    &["gpt-4"],
+                    4,
+                    Some(0),
+                    &["/v1/chat/completions", "/v1/embeddings", "/v1/models"],
+                ),
+            )
+            .worker_id;
+
+        for path in &["/v1/chat/completions", "/v1/embeddings", "/v1/models"] {
+            let result = core.submit_transport_request(
+                "openai",
+                "gpt-4",
+                *path,
+                "POST",
+                false,
+                String::new(),
+                HeaderMap::new(),
+                None,
+            );
+            match result {
+                SubmissionOutcome::Dispatched(d) => {
+                    assert_eq!(d.worker_id, worker);
+                    core.finish_request(&worker, &d.request_id);
+                }
+                other => panic!("expected Dispatched for path {}, got {:?}", path, other),
+            }
+        }
+
+        // Path not in prefixes should not match
+        let result = core.submit_transport_request(
+            "openai",
+            "gpt-4",
+            "/v1/audio/transcriptions",
+            "POST",
+            false,
+            String::new(),
+            HeaderMap::new(),
+            None,
+        );
+        assert!(
+            !matches!(result, SubmissionOutcome::Dispatched(_)),
+            "/v1/audio/transcriptions should not match worker with limited prefixes"
+        );
+    }
+
+    // ---- Provider Routing: empty routing struct (all fields None) ----
+
+    #[test]
+    fn empty_routing_struct_dispatches_normally() {
+        let mut core = ProxyServerCore::new();
+        let worker = core
+            .register_worker(
+                "openai",
+                register_message("openai-1", &["gpt-4"], 2, Some(0)),
+            )
+            .worker_id;
+
+        // ProviderRouting with all fields None should behave like no routing
+        let result = submit_with_routing(
+            &mut core,
+            "openai",
+            "gpt-4",
+            ProviderRouting::default(),
+        );
+
+        match result {
+            SubmissionOutcome::Dispatched(d) => assert_eq!(d.worker_id, worker),
+            other => panic!("expected Dispatched, got {:?}", other),
+        }
     }
 }
