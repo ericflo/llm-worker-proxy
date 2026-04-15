@@ -1,0 +1,36 @@
+{
+  "$schema": "https://raw.githubusercontent.com/nickel-org/nickel.rs/master/docs/tauri.conf.json",
+  "productName": "ModelRelay",
+  "version": "0.1.0",
+  "identifier": "com.modelrelay.desktop",
+  "build": {
+    "frontendDist": "./ui"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "title": "ModelRelay",
+        "width": 800,
+        "height": 600,
+        "resizable": true,
+        "visible": false
+      }
+    ],
+    "trayIcon": {
+      "iconPath": "icons/icon.png",
+      "iconAsTemplate": true
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
+  }
+}
