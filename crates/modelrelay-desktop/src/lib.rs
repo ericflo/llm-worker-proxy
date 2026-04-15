@@ -121,6 +121,7 @@ impl WorkerManager {
             models: settings.models.clone(),
             max_concurrent: settings.max_concurrent,
             backend_base_url: settings.backend_url.clone(),
+            endpoint_prefixes: vec![],
         };
         config.resolve_wildcard_models().await;
 
