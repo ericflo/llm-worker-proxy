@@ -59,6 +59,9 @@ pub fn router(state: Arc<CloudState>) -> Router {
         .route("/robots.txt", get(robots_txt))
         .route("/sitemap.xml", get(sitemap_xml))
         .route("/favicon.ico", get(favicon_ico))
+        .route("/favicon-32.png", get(favicon_32_png))
+        .route("/apple-touch-icon.png", get(apple_touch_icon))
+        .route("/icon-512.png", get(icon_512_png))
         .route("/og-image.png", get(og_image))
         .fallback(not_found)
         .layer(middleware::from_fn(security_headers))
@@ -130,10 +133,64 @@ async fn sitemap_xml() -> impl IntoResponse {
     )
 }
 
+/// Real multi-size Windows .ico (16x16 + 32x32 PNG sub-images) shipped by the
+/// desktop crate. Baked in so the site and desktop app share branding.
+static FAVICON_ICO_BYTES: &[u8] = include_bytes!("../../../modelrelay-desktop/icons/icon.ico");
+static FAVICON_32_PNG_BYTES: &[u8] = include_bytes!("../../../modelrelay-desktop/icons/32x32.png");
+static APPLE_TOUCH_ICON_BYTES: &[u8] =
+    include_bytes!("../../../modelrelay-desktop/icons/128x128@2x.png");
+static ICON_512_PNG_BYTES: &[u8] = include_bytes!("../../../modelrelay-desktop/icons/icon.png");
+
 async fn favicon_ico() -> impl IntoResponse {
-    // Minimal SVG favicon matching the purple "M" logo used in the HTML head.
-    let svg = r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="6" fill="#7c3aed"/><text x="16" y="24" font-size="22" font-weight="bold" fill="white" text-anchor="middle" font-family="system-ui,sans-serif">M</text></svg>"##;
-    ([(axum::http::header::CONTENT_TYPE, "image/svg+xml")], svg)
+    (
+        [
+            (axum::http::header::CONTENT_TYPE, "image/x-icon"),
+            (
+                axum::http::header::CACHE_CONTROL,
+                "public, max-age=86400, immutable",
+            ),
+        ],
+        FAVICON_ICO_BYTES,
+    )
+}
+
+async fn favicon_32_png() -> impl IntoResponse {
+    (
+        [
+            (axum::http::header::CONTENT_TYPE, "image/png"),
+            (
+                axum::http::header::CACHE_CONTROL,
+                "public, max-age=86400, immutable",
+            ),
+        ],
+        FAVICON_32_PNG_BYTES,
+    )
+}
+
+async fn apple_touch_icon() -> impl IntoResponse {
+    (
+        [
+            (axum::http::header::CONTENT_TYPE, "image/png"),
+            (
+                axum::http::header::CACHE_CONTROL,
+                "public, max-age=86400, immutable",
+            ),
+        ],
+        APPLE_TOUCH_ICON_BYTES,
+    )
+}
+
+async fn icon_512_png() -> impl IntoResponse {
+    (
+        [
+            (axum::http::header::CONTENT_TYPE, "image/png"),
+            (
+                axum::http::header::CACHE_CONTROL,
+                "public, max-age=86400, immutable",
+            ),
+        ],
+        ICON_512_PNG_BYTES,
+    )
 }
 
 /// 1200x630 branded social-share card used by `og:image` / `twitter:image`.
@@ -164,6 +221,9 @@ const SESSION_EXEMPT_ROUTES: &[&str] = &[
     "/robots.txt",
     "/sitemap.xml",
     "/favicon.ico",
+    "/favicon-32.png",
+    "/apple-touch-icon.png",
+    "/icon-512.png",
     "/og-image.png",
     "/checkout/cancel",
     "/terms",

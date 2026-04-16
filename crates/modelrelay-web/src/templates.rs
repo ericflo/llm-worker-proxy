@@ -2745,7 +2745,10 @@ pub fn page_shell_custom(
   <meta name="twitter:description" content="Route inference to your own GPU workers through a secure relay. OpenAI, Anthropic, and Responses API compatible.">
   <meta name="twitter:image" content="https://modelrelay.io/og-image.png">
   <meta name="twitter:image:alt" content="ModelRelay — Managed LLM Relay for Your AI Workers">
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%237c3aed'/><text x='50' y='72' font-size='60' font-weight='bold' text-anchor='middle' fill='white'>M</text></svg>">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <link rel="shortcut icon" href="/favicon.ico">
   <style>
     *, *::before, *::after {{ box-sizing: border-box; margin: 0; padding: 0; }}
     body {{

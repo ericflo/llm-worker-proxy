@@ -398,9 +398,63 @@ async fn desktop_download_unknown_platform_falls_back_to_releases_page() {
 
 #[tokio::test]
 async fn favicon_returns_success() {
-    let (status, body) = get("/favicon.ico").await;
-    assert_eq!(status, StatusCode::OK);
-    assert!(body.contains("<svg"), "expected SVG favicon");
+    let resp = app()
+        .oneshot(
+            Request::builder()
+                .uri("/favicon.ico")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let content_type = resp
+        .headers()
+        .get(axum::http::header::CONTENT_TYPE)
+        .expect("favicon should set Content-Type")
+        .to_str()
+        .expect("Content-Type should be valid UTF-8");
+    assert_eq!(content_type, "image/x-icon");
+
+    let bytes = resp.into_body().collect().await.unwrap().to_bytes();
+    // Windows .ico files start with 00 00 01 00 (reserved + type=icon).
+    assert!(
+        bytes.len() >= 4 && &bytes[..4] == b"\x00\x00\x01\x00",
+        "expected a real Windows .ico resource, got {} bytes starting with {:?}",
+        bytes.len(),
+        &bytes[..bytes.len().min(8)]
+    );
+}
+
+#[tokio::test]
+async fn apple_touch_icon_returns_png() {
+    let resp = app()
+        .oneshot(
+            Request::builder()
+                .uri("/apple-touch-icon.png")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let content_type = resp
+        .headers()
+        .get(axum::http::header::CONTENT_TYPE)
+        .expect("apple-touch-icon should set Content-Type")
+        .to_str()
+        .expect("Content-Type should be valid UTF-8");
+    assert_eq!(content_type, "image/png");
+
+    let bytes = resp.into_body().collect().await.unwrap().to_bytes();
+    // PNG files start with 89 50 4E 47 0D 0A 1A 0A.
+    assert!(
+        bytes.len() >= 8 && &bytes[..8] == b"\x89PNG\r\n\x1a\n",
+        "expected a real PNG, got {} bytes",
+        bytes.len()
+    );
 }
 
 #[tokio::test]
