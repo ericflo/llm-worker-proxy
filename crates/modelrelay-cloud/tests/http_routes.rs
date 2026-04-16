@@ -253,12 +253,95 @@ async fn sitemap_xml_returns_200_with_correct_content() {
         body.contains("http://www.sitemaps.org/schemas/sitemap/0.9"),
         "missing sitemap namespace"
     );
-    for path in &["/", "/pricing", "/signup", "/login", "/setup", "/integrate"] {
+    for path in &[
+        "/",
+        "/pricing",
+        "/signup",
+        "/login",
+        "/setup",
+        "/integrate",
+        "/terms",
+        "/privacy",
+    ] {
         assert!(
             body.contains(&format!("https://modelrelay.io{path}")),
             "missing URL for {path}"
         );
     }
+}
+
+// ─── Legal pages ──────────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn terms_page_returns_200_with_heading() {
+    // /terms is session-exempt, so it renders even without a session layer.
+    let (status, body) = get("/terms").await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(
+        body.contains("<h1>Terms of Service</h1>"),
+        "expected <h1>Terms of Service</h1> in response, got body starting: {}",
+        &body[..body.len().min(500)]
+    );
+    assert!(
+        body.contains(r#"<meta property="og:url" content="https://modelrelay.io/terms""#),
+        "/terms should have per-page og:url"
+    );
+    assert!(
+        body.contains(r#"<link rel="canonical" href="https://modelrelay.io/terms""#),
+        "/terms should have per-page canonical link"
+    );
+}
+
+#[tokio::test]
+async fn privacy_page_returns_200_with_heading() {
+    // /privacy is session-exempt, so it renders even without a session layer.
+    let (status, body) = get("/privacy").await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(
+        body.contains("<h1>Privacy Policy</h1>"),
+        "expected <h1>Privacy Policy</h1> in response, got body starting: {}",
+        &body[..body.len().min(500)]
+    );
+    assert!(
+        body.contains(r#"<meta property="og:url" content="https://modelrelay.io/privacy""#),
+        "/privacy should have per-page og:url"
+    );
+    assert!(
+        body.contains(r#"<link rel="canonical" href="https://modelrelay.io/privacy""#),
+        "/privacy should have per-page canonical link"
+    );
+}
+
+#[tokio::test]
+async fn sitemap_xml_includes_legal_pages() {
+    let (status, body) = get("/sitemap.xml").await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(
+        body.contains("<loc>https://modelrelay.io/terms</loc>"),
+        "sitemap missing /terms"
+    );
+    assert!(
+        body.contains("<loc>https://modelrelay.io/privacy</loc>"),
+        "sitemap missing /privacy"
+    );
+}
+
+#[tokio::test]
+async fn signup_form_links_to_legal_pages() {
+    let (status, body) = get_with_session("/signup").await;
+    assert_eq!(status, StatusCode::OK, "/signup should render with session");
+    assert!(
+        body.contains("By creating an account"),
+        "/signup should display the legal acceptance line"
+    );
+    assert!(
+        body.contains(r#"href="/terms""#),
+        "/signup should link to /terms"
+    );
+    assert!(
+        body.contains(r#"href="/privacy""#),
+        "/signup should link to /privacy"
+    );
 }
 
 #[tokio::test]
