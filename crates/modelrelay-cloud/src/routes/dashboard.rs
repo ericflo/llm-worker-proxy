@@ -56,10 +56,12 @@ struct ApiKeyRow {
 // ─── GET /dashboard ─────────────────────────────────────────────────────────
 
 /// GET /dashboard — show subscription status and API key info.
+#[allow(clippy::too_many_lines)]
 pub async fn page(session: Session, State(state): State<Arc<CloudState>>) -> Response {
     let Some(ref pool) = state.db else {
         return Html(modelrelay_web::templates::page_shell(
             "Dashboard",
+            "/dashboard",
             &no_db_html(),
             true,
         ))
@@ -88,6 +90,7 @@ pub async fn page(session: Session, State(state): State<Arc<CloudState>>) -> Res
             tracing::error!("dashboard user query error: {e}");
             return Html(modelrelay_web::templates::page_shell(
                 "Dashboard",
+                "/dashboard",
                 "<div class=\"card\"><h2>Error</h2><p>Could not load your account. Please try again later.</p></div>",
                 true,
             ))
@@ -109,6 +112,7 @@ pub async fn page(session: Session, State(state): State<Arc<CloudState>>) -> Res
         let html = admin_dashboard_html(&user.email, &keys, &csrf_field);
         Html(modelrelay_web::templates::page_shell_custom(
             "Dashboard",
+            "/dashboard",
             &html,
             true,
             "",
@@ -158,6 +162,7 @@ pub async fn page(session: Session, State(state): State<Arc<CloudState>>) -> Res
         );
         Html(modelrelay_web::templates::page_shell_custom(
             "Dashboard",
+            "/dashboard",
             &html,
             true,
             "",
@@ -172,11 +177,11 @@ pub async fn page(session: Session, State(state): State<Arc<CloudState>>) -> Res
 /// POST /dashboard/billing-portal — create a Stripe billing portal session and redirect.
 pub async fn billing_portal(session: Session, State(state): State<Arc<CloudState>>) -> Response {
     let Some(ref key) = state.stripe_key else {
-        return error_page("Billing not configured").into_response();
+        return error_page("/dashboard/billing-portal", "Billing not configured").into_response();
     };
 
     let Some(ref pool) = state.db else {
-        return error_page("Database not available").into_response();
+        return error_page("/dashboard/billing-portal", "Database not available").into_response();
     };
 
     let user_id = match require_user(&session).await {
@@ -196,6 +201,7 @@ pub async fn billing_portal(session: Session, State(state): State<Arc<CloudState
     let Some(customer_id) = customer_id else {
         return Html(modelrelay_web::templates::page_shell(
             "Error",
+            "/dashboard/billing-portal",
             "<div class=\"card\"><h2>No billing account</h2>\
              <p>No Stripe customer found for your account.</p>\
              <p><a href=\"/dashboard\">&larr; Back to dashboard</a></p></div>",
@@ -223,23 +229,39 @@ pub async fn billing_portal(session: Session, State(state): State<Arc<CloudState
                 if let Some(url) = body["url"].as_str() {
                     Redirect::to(url).into_response()
                 } else {
-                    error_page("Stripe did not return a portal URL.").into_response()
+                    error_page(
+                        "/dashboard/billing-portal",
+                        "Stripe did not return a portal URL.",
+                    )
+                    .into_response()
                 }
             }
             Err(e) => {
                 tracing::error!("stripe portal response parse error: {e}");
-                error_page("Could not process billing portal response.").into_response()
+                error_page(
+                    "/dashboard/billing-portal",
+                    "Could not process billing portal response.",
+                )
+                .into_response()
             }
         },
         Ok(r) => {
             let status = r.status();
             let body = r.text().await.unwrap_or_default();
             tracing::error!("stripe billing portal API error: {status} — {body}");
-            error_page("Could not open billing portal. Please try again later.").into_response()
+            error_page(
+                "/dashboard/billing-portal",
+                "Could not open billing portal. Please try again later.",
+            )
+            .into_response()
         }
         Err(e) => {
             tracing::error!("stripe billing portal request error: {e}");
-            error_page("Could not reach payment provider. Please try again later.").into_response()
+            error_page(
+                "/dashboard/billing-portal",
+                "Could not reach payment provider. Please try again later.",
+            )
+            .into_response()
         }
     }
 }
@@ -249,7 +271,7 @@ pub async fn billing_portal(session: Session, State(state): State<Arc<CloudState
 /// POST /dashboard/keys/generate — admin-only: provision a new API key.
 pub async fn keys_generate(session: Session, State(state): State<Arc<CloudState>>) -> Response {
     let Some(ref pool) = state.db else {
-        return error_page("Database not available").into_response();
+        return error_page("/dashboard/keys/generate", "Database not available").into_response();
     };
 
     let user_id = match require_user(&session).await {
@@ -270,12 +292,18 @@ pub async fn keys_generate(session: Session, State(state): State<Arc<CloudState>
     }
 
     let Some(ref admin_url) = state.admin_url else {
-        return error_page("Admin API not configured. Cannot generate API keys at this time.")
-            .into_response();
+        return error_page(
+            "/dashboard/keys/generate",
+            "Admin API not configured. Cannot generate API keys at this time.",
+        )
+        .into_response();
     };
     let Some(ref admin_token) = state.admin_token else {
-        return error_page("Admin API not configured. Cannot generate API keys at this time.")
-            .into_response();
+        return error_page(
+            "/dashboard/keys/generate",
+            "Admin API not configured. Cannot generate API keys at this time.",
+        )
+        .into_response();
     };
 
     // Get user email for key name
@@ -287,7 +315,11 @@ pub async fn keys_generate(session: Session, State(state): State<Arc<CloudState>
         Ok(e) => e,
         Err(e) => {
             tracing::error!("keys_generate user lookup error: {e}");
-            return error_page("Could not look up your account.").into_response();
+            return error_page(
+                "/dashboard/keys/generate",
+                "Could not look up your account.",
+            )
+            .into_response();
         }
     };
 
@@ -308,6 +340,7 @@ pub async fn keys_generate(session: Session, State(state): State<Arc<CloudState>
             {
                 tracing::error!("keys_generate db insert error: {e}");
                 return error_page(
+                    "/dashboard/keys/generate",
                     "Key was provisioned on the server but could not be saved. Contact support.",
                 )
                 .into_response();
@@ -318,6 +351,7 @@ pub async fn keys_generate(session: Session, State(state): State<Arc<CloudState>
         Err(e) => {
             tracing::error!("keys_generate provision error: {e}");
             error_page(
+                "/dashboard/keys/generate",
                 "Could not generate API key. The relay server may be unreachable. Please try again later.",
             )
             .into_response()
@@ -333,8 +367,9 @@ pub async fn keys_revoke(
     State(state): State<Arc<CloudState>>,
     Path(key_uuid): Path<uuid::Uuid>,
 ) -> Response {
+    let path = format!("/dashboard/keys/{key_uuid}/revoke");
     let Some(ref pool) = state.db else {
-        return error_page("Database not available").into_response();
+        return error_page(&path, "Database not available").into_response();
     };
 
     let user_id = match require_user(&session).await {
@@ -366,7 +401,7 @@ pub async fn keys_revoke(
     .flatten();
 
     let Some((key_id,)) = key_row else {
-        return error_page("API key not found or already revoked.").into_response();
+        return error_page(&path, "API key not found or already revoked.").into_response();
     };
 
     // Attempt to revoke on the server
@@ -386,7 +421,7 @@ pub async fn keys_revoke(
         .await
     {
         tracing::error!("keys_revoke db update error: {e}");
-        return error_page("Could not revoke key. Please try again.").into_response();
+        return error_page(&path, "Could not revoke key. Please try again.").into_response();
     }
 
     tracing::info!(key_id = %key_id, "admin revoked API key");
@@ -570,9 +605,10 @@ pub async fn integrate(session: Session, State(state): State<Arc<CloudState>>) -
 
 // ─── HTML rendering ─────────────────────────────────────────────────────────
 
-fn error_page(message: &str) -> Html<String> {
+fn error_page(path: &str, message: &str) -> Html<String> {
     Html(modelrelay_web::templates::page_shell(
         "Error",
+        path,
         &format!(
             "<div class=\"card\" style=\"border-left: 3px solid #f87171;\">\
              <h2 style=\"display:flex;align-items:center;gap:10px;\">\

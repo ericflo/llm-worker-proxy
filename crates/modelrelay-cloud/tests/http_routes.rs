@@ -4,6 +4,7 @@ use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use http_body_util::BodyExt;
 use tower::ServiceExt;
+use tower_sessions::{MemoryStore, SessionManagerLayer};
 
 use modelrelay_cloud::routes;
 use modelrelay_cloud::state::CloudState;
@@ -30,6 +31,24 @@ fn test_state() -> Arc<CloudState> {
 
 fn app() -> axum::Router {
     routes::router(test_state())
+}
+
+/// Build a router with an in-memory session layer attached, so session-dependent
+/// routes don't 503 under the session guard middleware. Used by tests that
+/// want to inspect rendered page HTML (canonical/og meta tags, etc.).
+fn app_with_session() -> axum::Router {
+    let session_layer = SessionManagerLayer::new(MemoryStore::default());
+    routes::router(test_state()).layer(session_layer)
+}
+
+async fn get_with_session(path: &str) -> (StatusCode, String) {
+    let resp = app_with_session()
+        .oneshot(Request::builder().uri(path).body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    let status = resp.status();
+    let body = resp.into_body().collect().await.unwrap().to_bytes();
+    (status, String::from_utf8_lossy(&body).into_owned())
 }
 
 async fn get(path: &str) -> (StatusCode, String) {
@@ -402,6 +421,84 @@ async fn responses_include_security_headers() {
     assert!(
         csp.unwrap().contains("https://js.stripe.com"),
         "CSP must allow Stripe JS"
+    );
+}
+
+// ─── Per-page og:url + canonical meta tags ────────────────────────────────
+
+#[tokio::test]
+async fn landing_page_has_root_og_url_and_canonical() {
+    let (status, body) = get_with_session("/").await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(
+        body.contains(r#"<meta property="og:url" content="https://modelrelay.io/""#),
+        "landing page missing og:url for root path"
+    );
+    assert!(
+        body.contains(r#"<link rel="canonical" href="https://modelrelay.io/""#),
+        "landing page missing canonical for root path"
+    );
+}
+
+#[tokio::test]
+async fn login_page_has_per_page_og_url_and_canonical() {
+    let (status, body) = get_with_session("/login").await;
+    assert_eq!(status, StatusCode::OK, "/login should render with session");
+    assert!(
+        body.contains(r#"<meta property="og:url" content="https://modelrelay.io/login""#),
+        "/login should have og:url pointing at /login, got body starting: {}",
+        &body[..body.len().min(500)]
+    );
+    assert!(
+        body.contains(r#"<link rel="canonical" href="https://modelrelay.io/login""#),
+        "/login should have canonical link pointing at /login"
+    );
+}
+
+#[tokio::test]
+async fn signup_page_has_per_page_og_url_and_canonical() {
+    let (status, body) = get_with_session("/signup").await;
+    assert_eq!(status, StatusCode::OK, "/signup should render with session");
+    assert!(
+        body.contains(r#"<meta property="og:url" content="https://modelrelay.io/signup""#),
+        "/signup should have og:url pointing at /signup"
+    );
+    assert!(
+        body.contains(r#"<link rel="canonical" href="https://modelrelay.io/signup""#),
+        "/signup should have canonical link pointing at /signup"
+    );
+}
+
+#[tokio::test]
+async fn pricing_page_has_og_url_and_canonical() {
+    let (status, body) = get_with_session("/pricing").await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "/pricing should render with session"
+    );
+    assert!(
+        body.contains(r#"<meta property="og:url" content="https://modelrelay.io/pricing""#),
+        "/pricing should have og:url pointing at /pricing"
+    );
+    assert!(
+        body.contains(r#"<link rel="canonical" href="https://modelrelay.io/pricing""#),
+        "/pricing should have canonical link pointing at /pricing"
+    );
+}
+
+#[tokio::test]
+async fn checkout_cancel_has_per_page_og_url_and_canonical() {
+    // /checkout/cancel is session-exempt, so it renders even without the session layer.
+    let (status, body) = get("/checkout/cancel").await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(
+        body.contains(r#"<meta property="og:url" content="https://modelrelay.io/checkout/cancel""#),
+        "/checkout/cancel should have og:url pointing at /checkout/cancel"
+    );
+    assert!(
+        body.contains(r#"<link rel="canonical" href="https://modelrelay.io/checkout/cancel""#),
+        "/checkout/cancel should have canonical link pointing at /checkout/cancel"
     );
 }
 

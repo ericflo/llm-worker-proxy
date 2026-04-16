@@ -27,7 +27,10 @@ fn client_ip(headers: &HeaderMap) -> IpAddr {
 }
 
 /// Render a 429 Too Many Requests page.
-fn rate_limit_response() -> Response {
+///
+/// `path` is the canonical URL path of the request that triggered the rate limit
+/// (e.g. `/signup` or `/login`), used for per-page og:url and canonical.
+fn rate_limit_response(path: &str) -> Response {
     let body = "\
 <div class=\"card\" style=\"border-left: 3px solid #fbbf24;\">\
   <h2 style=\"display:flex;align-items:center;gap:10px;\">\
@@ -38,7 +41,7 @@ fn rate_limit_response() -> Response {
   <p style=\"margin-top:12px;color:#8b949e;font-size:0.9rem;\">This limit protects your account from unauthorized access attempts.</p>\
   <a href=\"/\" class=\"btn\" style=\"margin-top:20px;\">Back to Home</a>\
 </div>";
-    let html = modelrelay_web::templates::page_shell("Too Many Requests", body, false);
+    let html = modelrelay_web::templates::page_shell("Too Many Requests", path, body, false);
     (StatusCode::TOO_MANY_REQUESTS, Html(html)).into_response()
 }
 
@@ -67,6 +70,7 @@ pub async fn signup_page(session: Session) -> Response {
     let csrf_field = csrf::hidden_field(&session).await;
     Html(modelrelay_web::templates::page_shell(
         "Sign Up",
+        "/signup",
         &signup_form_html(None, &csrf_field),
         false,
     ))
@@ -83,7 +87,7 @@ pub async fn signup_submit(
 ) -> Response {
     let ip = client_ip(&headers);
     if state.rate_limiter.is_limited(ip) {
-        return rate_limit_response();
+        return rate_limit_response("/signup");
     }
 
     let csrf_field = csrf::hidden_field(&session).await;
@@ -91,6 +95,7 @@ pub async fn signup_submit(
     let Some(ref pool) = state.db else {
         return Html(modelrelay_web::templates::page_shell(
             "Sign Up",
+            "/signup",
             "<div class=\"card\"><h2>Error</h2><p>Database not available.</p></div>",
             false,
         ))
@@ -104,6 +109,7 @@ pub async fn signup_submit(
     if email.is_empty() || !email.contains('@') {
         return Html(modelrelay_web::templates::page_shell(
             "Sign Up",
+            "/signup",
             &signup_form_html(Some("Please enter a valid email address."), &csrf_field),
             false,
         ))
@@ -112,6 +118,7 @@ pub async fn signup_submit(
     if password.len() < 8 {
         return Html(modelrelay_web::templates::page_shell(
             "Sign Up",
+            "/signup",
             &signup_form_html(Some("Password must be at least 8 characters."), &csrf_field),
             false,
         ))
@@ -130,6 +137,7 @@ pub async fn signup_submit(
         state.rate_limiter.record_attempt(ip);
         return Html(modelrelay_web::templates::page_shell(
             "Sign Up",
+            "/signup",
             &signup_form_html(
                 Some("An account with this email already exists. <a href=\"/login\">Log in instead</a>."),
                 &csrf_field,
@@ -146,6 +154,7 @@ pub async fn signup_submit(
             tracing::error!("password hash error: {e}");
             return Html(modelrelay_web::templates::page_shell(
                 "Sign Up",
+                "/signup",
                 &signup_form_html(Some("Internal error. Please try again."), &csrf_field),
                 false,
             ))
@@ -171,6 +180,7 @@ pub async fn signup_submit(
             tracing::error!("user insert error: {e}");
             return Html(modelrelay_web::templates::page_shell(
                 "Sign Up",
+                "/signup",
                 &signup_form_html(
                     Some("Could not create account. Please try again."),
                     &csrf_field,
@@ -210,6 +220,7 @@ pub async fn login_page(session: Session) -> Response {
     let csrf_field = csrf::hidden_field(&session).await;
     Html(modelrelay_web::templates::page_shell(
         "Log In",
+        "/login",
         &login_form_html(None, &csrf_field),
         false,
     ))
@@ -225,7 +236,7 @@ pub async fn login_submit(
 ) -> Response {
     let ip = client_ip(&headers);
     if state.rate_limiter.is_limited(ip) {
-        return rate_limit_response();
+        return rate_limit_response("/login");
     }
 
     let csrf_field = csrf::hidden_field(&session).await;
@@ -233,6 +244,7 @@ pub async fn login_submit(
     let Some(ref pool) = state.db else {
         return Html(modelrelay_web::templates::page_shell(
             "Log In",
+            "/login",
             "<div class=\"card\"><h2>Error</h2><p>Database not available.</p></div>",
             false,
         ))
@@ -252,6 +264,7 @@ pub async fn login_submit(
         state.rate_limiter.record_attempt(ip);
         return Html(modelrelay_web::templates::page_shell(
             "Log In",
+            "/login",
             &login_form_html(Some("Invalid email or password."), &csrf_field),
             false,
         ))
@@ -262,6 +275,7 @@ pub async fn login_submit(
         state.rate_limiter.record_attempt(ip);
         return Html(modelrelay_web::templates::page_shell(
             "Log In",
+            "/login",
             &login_form_html(Some("Invalid email or password."), &csrf_field),
             false,
         ))
