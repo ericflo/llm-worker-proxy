@@ -1075,7 +1075,7 @@ fn subscriber_dashboard_html(
                  <h3>Integrate</h3>\
                  <p>Code snippets for your favorite tools</p>\
                </a>\
-               <a href=\"https://github.com/ericflo/modelrelay/releases/latest\" target=\"_blank\" class=\"card dash-link\">\
+               <a href=\"/#download\" class=\"card dash-link\">\
                  <h3>Desktop App</h3>\
                  <p>Download the tray app for Windows, macOS, or Linux</p>\
                </a>\
