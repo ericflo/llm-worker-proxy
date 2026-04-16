@@ -59,6 +59,7 @@ pub fn router(state: Arc<CloudState>) -> Router {
         .route("/robots.txt", get(robots_txt))
         .route("/sitemap.xml", get(sitemap_xml))
         .route("/favicon.ico", get(favicon_ico))
+        .route("/og-image.png", get(og_image))
         .fallback(not_found)
         .layer(middleware::from_fn(security_headers))
         .layer(middleware::from_fn(csrf::csrf_middleware))
@@ -135,6 +136,26 @@ async fn favicon_ico() -> impl IntoResponse {
     ([(axum::http::header::CONTENT_TYPE, "image/svg+xml")], svg)
 }
 
+/// 1200x630 branded social-share card used by `og:image` / `twitter:image`.
+///
+/// Baked into the binary so it ships with the image everywhere the cloud
+/// service runs and so the site's CSP (`img-src 'self' data:`) can serve it
+/// same-origin without special-casing an external host.
+static OG_IMAGE_BYTES: &[u8] = include_bytes!("../../assets/og-image.png");
+
+async fn og_image() -> impl IntoResponse {
+    (
+        [
+            (axum::http::header::CONTENT_TYPE, "image/png"),
+            (
+                axum::http::header::CACHE_CONTROL,
+                "public, max-age=86400, immutable",
+            ),
+        ],
+        OG_IMAGE_BYTES,
+    )
+}
+
 /// Routes that do not require a session.
 const SESSION_EXEMPT_ROUTES: &[&str] = &[
     "/",
@@ -143,6 +164,7 @@ const SESSION_EXEMPT_ROUTES: &[&str] = &[
     "/robots.txt",
     "/sitemap.xml",
     "/favicon.ico",
+    "/og-image.png",
     "/checkout/cancel",
     "/terms",
     "/privacy",
