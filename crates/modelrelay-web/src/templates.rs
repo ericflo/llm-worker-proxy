@@ -2735,10 +2735,16 @@ pub fn page_shell_custom(
   <meta property="og:description" content="Route inference to your own GPU workers through a secure relay. OpenAI, Anthropic, and Responses API compatible.">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://modelrelay.io{path}">
+  <meta property="og:image" content="https://modelrelay.io/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="ModelRelay — Managed LLM Relay for Your AI Workers">
   <link rel="canonical" href="https://modelrelay.io{path}">
-  <meta name="twitter:card" content="summary">
+  <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="{title} — ModelRelay">
   <meta name="twitter:description" content="Route inference to your own GPU workers through a secure relay. OpenAI, Anthropic, and Responses API compatible.">
+  <meta name="twitter:image" content="https://modelrelay.io/og-image.png">
+  <meta name="twitter:image:alt" content="ModelRelay — Managed LLM Relay for Your AI Workers">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%237c3aed'/><text x='50' y='72' font-size='60' font-weight='bold' text-anchor='middle' fill='white'>M</text></svg>">
   <style>
     *, *::before, *::after {{ box-sizing: border-box; margin: 0; padding: 0; }}

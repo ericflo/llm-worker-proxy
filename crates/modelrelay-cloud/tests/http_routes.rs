@@ -403,6 +403,73 @@ async fn favicon_returns_success() {
     assert!(body.contains("<svg"), "expected SVG favicon");
 }
 
+#[tokio::test]
+async fn og_image_returns_png() {
+    let resp = app()
+        .oneshot(
+            Request::builder()
+                .uri("/og-image.png")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let content_type = resp
+        .headers()
+        .get(axum::http::header::CONTENT_TYPE)
+        .expect("og-image should set Content-Type")
+        .to_str()
+        .expect("Content-Type should be valid UTF-8");
+    assert!(
+        content_type.starts_with("image/png"),
+        "expected image/png, got {content_type}"
+    );
+
+    let cache_control = resp
+        .headers()
+        .get(axum::http::header::CACHE_CONTROL)
+        .expect("og-image should set Cache-Control")
+        .to_str()
+        .expect("Cache-Control should be valid UTF-8");
+    assert!(
+        cache_control.contains("max-age"),
+        "expected Cache-Control with max-age, got {cache_control}"
+    );
+
+    let body = resp.into_body().collect().await.unwrap().to_bytes();
+    assert!(
+        body.len() > 1000,
+        "og-image should be a real PNG, got {} bytes",
+        body.len()
+    );
+    // PNG magic bytes: 89 50 4E 47 0D 0A 1A 0A
+    assert_eq!(
+        &body[..8],
+        &[0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a],
+        "body should start with PNG magic bytes"
+    );
+}
+
+#[tokio::test]
+async fn landing_page_includes_og_image_meta() {
+    let (status, body) = get("/").await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(
+        body.contains(r#"property="og:image" content="https://modelrelay.io/og-image.png""#),
+        "landing page should include og:image meta tag"
+    );
+    assert!(
+        body.contains(r#"name="twitter:card" content="summary_large_image""#),
+        "landing page should use summary_large_image twitter card"
+    );
+    assert!(
+        body.contains(r#"name="twitter:image" content="https://modelrelay.io/og-image.png""#),
+        "landing page should include twitter:image meta tag"
+    );
+}
+
 // ─── Stripe webhook ────────────────────────────────────────────────────────
 
 #[tokio::test]
@@ -581,8 +648,8 @@ async fn pricing_page_has_og_url_and_canonical() {
         "/pricing should have og:type"
     );
     assert!(
-        body.contains(r#"<meta name="twitter:card" content="summary""#),
-        "/pricing should have twitter:card"
+        body.contains(r#"<meta name="twitter:card" content="summary_large_image""#),
+        "/pricing should have twitter:card set to summary_large_image"
     );
     assert!(
         body.contains(r#"<meta name="twitter:title" content="Pricing — ModelRelay""#),
