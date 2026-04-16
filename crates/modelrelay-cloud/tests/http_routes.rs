@@ -271,6 +271,30 @@ async fn download_redirects_to_hash_anchor() {
 }
 
 #[tokio::test]
+async fn desktop_download_unknown_platform_falls_back_to_releases_page() {
+    let resp = app()
+        .oneshot(
+            Request::builder()
+                .uri("/download/desktop/freebsd")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::TEMPORARY_REDIRECT);
+    let location = resp
+        .headers()
+        .get(axum::http::header::LOCATION)
+        .expect("Location header should be set")
+        .to_str()
+        .expect("Location header should be valid UTF-8");
+    assert_eq!(
+        location, "https://github.com/ericflo/modelrelay/releases/latest",
+        "unknown platform should redirect to the releases landing page"
+    );
+}
+
+#[tokio::test]
 async fn favicon_returns_success() {
     let (status, body) = get("/favicon.ico").await;
     assert_eq!(status, StatusCode::OK);

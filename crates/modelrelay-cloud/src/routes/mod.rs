@@ -1,12 +1,15 @@
-use std::sync::Arc;
+use std::collections::HashMap;
+use std::sync::{Arc, LazyLock};
+use std::time::{Duration, Instant};
 
-use axum::extract::State;
+use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::middleware;
 use axum::response::{Html, IntoResponse, Redirect, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use serde_json::{Value, json};
+use tokio::sync::RwLock;
 
 use axum::extract::Request;
 use axum::middleware::Next;
@@ -29,6 +32,10 @@ pub fn router(state: Arc<CloudState>) -> Router {
         // Commercial routes: landing page, auth, billing, pricing
         .route("/", get(landing))
         .route("/download", get(download_redirect))
+        .route(
+            "/download/desktop/{platform}",
+            get(desktop_download_redirect),
+        )
         .route("/health", get(health))
         .route("/pricing", get(pricing::page))
         .route("/signup", get(auth::signup_page).post(auth::signup_submit))
@@ -130,6 +137,10 @@ const SESSION_EXEMPT_ROUTES: &[&str] = &[
     "/checkout/cancel",
 ];
 
+/// URL prefixes that do not require a session. Use for routes with path
+/// parameters (e.g. `/download/desktop/{platform}`).
+const SESSION_EXEMPT_PREFIXES: &[&str] = &["/download/desktop/", "/webhook/"];
+
 /// Middleware that returns a styled 503 page when a session-dependent route is
 /// hit but the `SessionManagerLayer` has not injected a `Session` into the
 /// request extensions (e.g. because the database is unreachable at startup).
@@ -137,7 +148,10 @@ async fn session_guard(request: Request, next: Next) -> Response {
     let path = request.uri().path().to_owned();
 
     // Let exempt routes through without checking for a session.
-    let exempt = SESSION_EXEMPT_ROUTES.contains(&path.as_str()) || path.starts_with("/webhook/");
+    let exempt = SESSION_EXEMPT_ROUTES.contains(&path.as_str())
+        || SESSION_EXEMPT_PREFIXES
+            .iter()
+            .any(|prefix| path.starts_with(prefix));
 
     if !exempt {
         let has_session = request
@@ -190,6 +204,105 @@ async fn security_headers(request: Request, next: Next) -> Response {
     response
 }
 
+/// GitHub releases API URL used to look up desktop release assets.
+const DESKTOP_RELEASES_URL: &str = "https://api.github.com/repos/ericflo/modelrelay/releases";
+
+/// Fallback redirect when the GitHub API is unreachable or no asset matches.
+const DESKTOP_FALLBACK_URL: &str = "https://github.com/ericflo/modelrelay/releases/latest";
+
+/// How long to cache the GitHub release lookup before refetching.
+const DESKTOP_CACHE_TTL: Duration = Duration::from_secs(300);
+
+/// Map of `platform -> browser_download_url` cached alongside its fetch time.
+type DesktopAssetCache = Option<(Instant, HashMap<String, String>)>;
+
+/// Process-wide cache for the resolved desktop asset URLs.
+static DESKTOP_DOWNLOAD_CACHE: LazyLock<RwLock<DesktopAssetCache>> =
+    LazyLock::new(|| RwLock::new(None));
+
+/// Map a `/download/desktop/{platform}` slug to the asset filename suffix
+/// produced by the Tauri release workflow.
+fn desktop_asset_suffix(platform: &str) -> Option<&'static str> {
+    match platform {
+        "macos" => Some("_aarch64.dmg"),
+        "macos-intel" => Some("_x64.dmg"),
+        "linux" | "linux-deb" => Some("_amd64.deb"),
+        "windows" => Some("_x64-setup.exe"),
+        _ => None,
+    }
+}
+
+/// Look up the latest desktop release on GitHub and return a map of
+/// `platform -> browser_download_url`. Results are cached for
+/// [`DESKTOP_CACHE_TTL`] to avoid hammering the GitHub API.
+async fn latest_desktop_assets() -> Option<HashMap<String, String>> {
+    if let Some((fetched_at, assets)) = DESKTOP_DOWNLOAD_CACHE.read().await.as_ref()
+        && fetched_at.elapsed() < DESKTOP_CACHE_TTL
+    {
+        return Some(assets.clone());
+    }
+
+    let client = reqwest::Client::builder()
+        .user_agent("modelrelay-cloud (+https://modelrelay.io)")
+        .timeout(Duration::from_secs(10))
+        .build()
+        .ok()?;
+
+    let releases: Vec<Value> = client
+        .get(DESKTOP_RELEASES_URL)
+        .send()
+        .await
+        .ok()?
+        .error_for_status()
+        .ok()?
+        .json()
+        .await
+        .ok()?;
+
+    let latest = releases.into_iter().find(|r| {
+        r.get("tag_name")
+            .and_then(Value::as_str)
+            .is_some_and(|tag| tag.starts_with("desktop-v"))
+    })?;
+
+    let assets = latest.get("assets").and_then(Value::as_array)?;
+    let mut map: HashMap<String, String> = HashMap::new();
+    for platform in ["macos", "macos-intel", "linux", "linux-deb", "windows"] {
+        let suffix = desktop_asset_suffix(platform).unwrap_or("");
+        if let Some(url) = assets.iter().find_map(|a| {
+            let name = a.get("name").and_then(Value::as_str)?;
+            let url = a.get("browser_download_url").and_then(Value::as_str)?;
+            name.ends_with(suffix).then(|| url.to_owned())
+        }) {
+            map.insert(platform.to_owned(), url);
+        }
+    }
+
+    if map.is_empty() {
+        return None;
+    }
+
+    *DESKTOP_DOWNLOAD_CACHE.write().await = Some((Instant::now(), map.clone()));
+    Some(map)
+}
+
+/// Redirect `/download/desktop/{platform}` to the matching asset on the latest
+/// `desktop-v*` GitHub release, with a 5-minute cache and a graceful fallback
+/// to the releases landing page.
+async fn desktop_download_redirect(Path(platform): Path<String>) -> Redirect {
+    if desktop_asset_suffix(&platform).is_none() {
+        return Redirect::temporary(DESKTOP_FALLBACK_URL);
+    }
+
+    match latest_desktop_assets()
+        .await
+        .and_then(|m| m.get(&platform).cloned())
+    {
+        Some(url) => Redirect::temporary(&url),
+        None => Redirect::temporary(DESKTOP_FALLBACK_URL),
+    }
+}
+
 async fn health(State(state): State<Arc<CloudState>>) -> (StatusCode, Json<Value>) {
     let db_ok = if let Some(ref pool) = state.db {
         sqlx::query_scalar::<_, i32>("SELECT 1")
@@ -214,4 +327,25 @@ async fn health(State(state): State<Arc<CloudState>>) -> (StatusCode, Json<Value
             "stripe_configured": state.stripe_key.is_some(),
         })),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::desktop_asset_suffix;
+
+    #[test]
+    fn maps_known_platforms_to_asset_suffixes() {
+        assert_eq!(desktop_asset_suffix("macos"), Some("_aarch64.dmg"));
+        assert_eq!(desktop_asset_suffix("macos-intel"), Some("_x64.dmg"));
+        assert_eq!(desktop_asset_suffix("linux"), Some("_amd64.deb"));
+        assert_eq!(desktop_asset_suffix("linux-deb"), Some("_amd64.deb"));
+        assert_eq!(desktop_asset_suffix("windows"), Some("_x64-setup.exe"));
+    }
+
+    #[test]
+    fn unknown_platforms_have_no_mapping() {
+        assert_eq!(desktop_asset_suffix(""), None);
+        assert_eq!(desktop_asset_suffix("freebsd"), None);
+        assert_eq!(desktop_asset_suffix("MACOS"), None);
+    }
 }
