@@ -2749,6 +2749,18 @@ pub fn page_shell_custom(
   <link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
   <link rel="shortcut icon" href="/favicon.ico">
+  <script type="application/ld+json">
+  {{
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    "name": "ModelRelay",
+    "url": "https://modelrelay.io",
+    "logo": "https://modelrelay.io/icon-512.png",
+    "sameAs": [
+      "https://github.com/ericflo/modelrelay"
+    ]
+  }}
+  </script>
   <style>
     *, *::before, *::after {{ box-sizing: border-box; margin: 0; padding: 0; }}
     body {{
@@ -3031,4 +3043,30 @@ pub fn page_shell_custom(
 pub fn page_shell(title: &str, path: &str, body_content: &str, logged_in: bool) -> String {
     let body_html = format!("<h1>{title}</h1>\n      {body_content}");
     page_shell_custom(title, path, &body_html, logged_in, "", "")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn page_shell_includes_organization_jsonld() {
+        let html = page_shell("Test", "/", "<p>body</p>", false);
+        assert!(
+            html.contains(r#"<script type="application/ld+json">"#),
+            "page_shell output should contain a JSON-LD script tag"
+        );
+        assert!(
+            html.contains(r#""@type": "Organization""#),
+            "page_shell output should contain the Organization schema"
+        );
+        assert!(
+            html.contains(r#""name": "ModelRelay""#),
+            "Organization schema should name ModelRelay"
+        );
+        assert!(
+            html.contains(r#""url": "https://modelrelay.io""#),
+            "Organization schema should include the canonical site URL"
+        );
+    }
 }
