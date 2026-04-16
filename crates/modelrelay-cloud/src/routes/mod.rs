@@ -88,8 +88,7 @@ async fn download_redirect() -> Redirect {
     Redirect::temporary("/#download")
 }
 
-async fn not_found(request: Request) -> impl IntoResponse {
-    let path = request.uri().path().to_owned();
+pub(super) async fn not_found(_request: Request) -> impl IntoResponse {
     let body = r#"<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;text-align:center;padding:2rem">
 <h1 style="font-size:6rem;font-weight:800;color:#7c3aed;line-height:1;margin:0">404</h1>
 <h2 style="font-size:1.5rem;font-weight:600;margin:1rem 0 .5rem">Page Not Found</h2>
@@ -100,7 +99,7 @@ async fn not_found(request: Request) -> impl IntoResponse {
         StatusCode::NOT_FOUND,
         Html(modelrelay_web::templates::page_shell(
             "404 — Not Found",
-            &path,
+            "/",
             body,
             false,
         )),
@@ -430,7 +429,7 @@ async fn health(State(state): State<Arc<CloudState>>) -> (StatusCode, Json<Value
 
 #[cfg(test)]
 mod tests {
-    use super::desktop_asset_suffix;
+    use super::{desktop_asset_suffix, not_found};
 
     #[test]
     fn maps_known_platforms_to_asset_suffixes() {
@@ -446,5 +445,29 @@ mod tests {
         assert_eq!(desktop_asset_suffix(""), None);
         assert_eq!(desktop_asset_suffix("freebsd"), None);
         assert_eq!(desktop_asset_suffix("MACOS"), None);
+    }
+
+    #[tokio::test]
+    async fn not_found_does_not_self_canonicalize() {
+        use axum::body::Body;
+        use axum::http::Request as HttpRequest;
+        use axum::response::IntoResponse;
+        let req = HttpRequest::builder()
+            .uri("/nonexistent-xyz")
+            .body(Body::empty())
+            .unwrap();
+        let resp = not_found(req).await.into_response();
+        let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let html = String::from_utf8(bytes.to_vec()).unwrap();
+        assert!(
+            !html.contains("/nonexistent-xyz"),
+            "404 page must not emit the missing URL (found canonical/og:url pointing to it)"
+        );
+        assert!(
+            html.contains("canonical\" href=\"https://modelrelay.io/\""),
+            "404 page should canonicalize to home"
+        );
     }
 }
