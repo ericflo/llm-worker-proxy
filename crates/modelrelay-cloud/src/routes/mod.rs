@@ -20,6 +20,7 @@ mod auth;
 mod checkout;
 pub mod csrf;
 mod dashboard;
+mod legal;
 mod pricing;
 mod webhook;
 
@@ -38,7 +39,9 @@ pub fn router(state: Arc<CloudState>) -> Router {
         )
         .route("/health", get(health))
         .route("/pricing", get(pricing::page))
+        .route("/privacy", get(legal::privacy_page))
         .route("/signup", get(auth::signup_page).post(auth::signup_submit))
+        .route("/terms", get(legal::terms_page))
         .route("/login", get(auth::login_page).post(auth::login_submit))
         .route("/logout", post(auth::logout))
         .route("/checkout", post(checkout::create))
@@ -119,6 +122,8 @@ async fn sitemap_xml() -> impl IntoResponse {
   <url><loc>https://modelrelay.io/login</loc></url>
   <url><loc>https://modelrelay.io/setup</loc></url>
   <url><loc>https://modelrelay.io/integrate</loc></url>
+  <url><loc>https://modelrelay.io/terms</loc></url>
+  <url><loc>https://modelrelay.io/privacy</loc></url>
 </urlset>
 "#,
     )
@@ -139,6 +144,8 @@ const SESSION_EXEMPT_ROUTES: &[&str] = &[
     "/sitemap.xml",
     "/favicon.ico",
     "/checkout/cancel",
+    "/terms",
+    "/privacy",
 ];
 
 /// URL prefixes that do not require a session. Use for routes with path

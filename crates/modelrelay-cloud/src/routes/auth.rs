@@ -355,6 +355,7 @@ fn signup_form_html(error: Option<&str>, csrf_field: &str) -> String {
         </div>
         <button type="submit" class="btn auth-submit">Create Account</button>
       </form>
+      <p class="auth-legal" style="margin-top:12px;font-size:0.78rem;color:#8b949e;text-align:center;">By creating an account, you agree to our <a href="/terms">Terms of Service</a> and <a href="/privacy">Privacy Policy</a>.</p>
       <p class="auth-no-cc">No credit card required</p>
       <p class="auth-switch">Already have an account? <a href="/login">Log in</a></p>
     </div>
