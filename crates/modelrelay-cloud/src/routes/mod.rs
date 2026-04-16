@@ -3,7 +3,7 @@ use std::sync::Arc;
 use axum::extract::State;
 use axum::http::StatusCode;
 use axum::middleware;
-use axum::response::{Html, IntoResponse, Response};
+use axum::response::{Html, IntoResponse, Redirect, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use serde_json::{Value, json};
@@ -28,6 +28,7 @@ pub fn router(state: Arc<CloudState>) -> Router {
     Router::new()
         // Commercial routes: landing page, auth, billing, pricing
         .route("/", get(landing))
+        .route("/download", get(download_redirect))
         .route("/health", get(health))
         .route("/pricing", get(pricing::page))
         .route("/signup", get(auth::signup_page).post(auth::signup_submit))
@@ -57,6 +58,15 @@ pub fn router(state: Arc<CloudState>) -> Router {
 
 async fn landing() -> Html<&'static str> {
     Html(LANDING_HTML)
+}
+
+/// Redirect `/download` to the `#download` section on the landing page.
+///
+/// This exists so shareable links like `https://modelrelay.io/download`
+/// resolve instead of 404ing. Uses a temporary (302) redirect so the
+/// destination can be changed later without cache headaches.
+async fn download_redirect() -> Redirect {
+    Redirect::temporary("/#download")
 }
 
 async fn not_found() -> impl IntoResponse {
@@ -112,6 +122,7 @@ async fn favicon_ico() -> impl IntoResponse {
 /// Routes that do not require a session.
 const SESSION_EXEMPT_ROUTES: &[&str] = &[
     "/",
+    "/download",
     "/health",
     "/robots.txt",
     "/sitemap.xml",
