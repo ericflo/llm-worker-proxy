@@ -115,6 +115,8 @@ async fn sitemap_xml() -> impl IntoResponse {
   <url><loc>https://modelrelay.io/pricing</loc></url>
   <url><loc>https://modelrelay.io/signup</loc></url>
   <url><loc>https://modelrelay.io/login</loc></url>
+  <url><loc>https://modelrelay.io/setup</loc></url>
+  <url><loc>https://modelrelay.io/integrate</loc></url>
 </urlset>
 "#,
     )

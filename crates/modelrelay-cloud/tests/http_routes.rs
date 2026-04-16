@@ -234,7 +234,7 @@ async fn sitemap_xml_returns_200_with_correct_content() {
         body.contains("http://www.sitemaps.org/schemas/sitemap/0.9"),
         "missing sitemap namespace"
     );
-    for path in &["/", "/pricing", "/signup", "/login"] {
+    for path in &["/", "/pricing", "/signup", "/login", "/setup", "/integrate"] {
         assert!(
             body.contains(&format!("https://modelrelay.io{path}")),
             "missing URL for {path}"
