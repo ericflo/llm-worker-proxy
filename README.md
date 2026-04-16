@@ -76,6 +76,8 @@ ModelRelay Desktop is a native tray application that wraps the worker daemon in 
 
 The desktop app uses the same `modelrelay-worker` library under the hood, so it supports all the same backends (llama-server, Ollama, vLLM, LM Studio, etc.).
 
+**Auto-updates:** The app checks for new releases on launch and from the tray's **Check for Updates…** menu, then installs signed updates in place — no manual reinstall needed. See [docs/auto-updates.md](docs/auto-updates.md) for how it works and how to cut a release.
+
 ## Who is this for?
 
 - **Home GPU users** running local models who want a single API endpoint across multiple machines
