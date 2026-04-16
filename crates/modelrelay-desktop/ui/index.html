@@ -678,6 +678,28 @@
       <button class="btn-save" onclick="doSave()">Save Settings</button>
       <div id="saveFeedback" class="save-feedback"></div>
     </div>
+
+    <!-- Updates section -->
+    <div class="card" id="updatesCard">
+      <div class="card-header">
+        <span class="card-title">Updates</span>
+      </div>
+      <div class="form-group">
+        <div id="updateStatus" class="hint" style="margin-top:0;line-height:1.5;">
+          Current version: <span id="currentVersion">&mdash;</span>
+        </div>
+      </div>
+      <div class="worker-controls" style="margin-top:10px;">
+        <button id="checkUpdateBtn" class="btn btn-start" onclick="doCheckUpdate()">Check for Updates</button>
+        <button id="installUpdateBtn" class="btn btn-stop" onclick="doInstallUpdate()" style="display:none;background:var(--accent);color:#fff;">Install Update</button>
+      </div>
+      <div id="updateProgress" style="display:none;margin-top:12px;">
+        <div style="background:var(--bg-base);border-radius:var(--radius-sm);height:8px;overflow:hidden;border:1px solid var(--border);">
+          <div id="updateProgressBar" style="background:var(--accent);height:100%;width:0%;transition:width 0.2s ease;"></div>
+        </div>
+        <div id="updateProgressText" class="hint" style="margin-top:6px;text-align:center;">Downloading&hellip;</div>
+      </div>
+    </div>
   </div>
 
   <script>
@@ -960,9 +982,139 @@
       }
     }
 
+    // Updates
+    let latestUpdate = null;
+
+    async function refreshCurrentVersion() {
+      try {
+        const info = await window.__TAURI__.app.getVersion();
+        document.getElementById("currentVersion").textContent = info;
+      } catch (e) {
+        console.error("Failed to get app version:", e);
+      }
+    }
+
+    function setUpdateStatus(msg, kind) {
+      const el = document.getElementById("updateStatus");
+      const current = document.getElementById("currentVersion").textContent;
+      let colorStyle = "";
+      if (kind === "success") colorStyle = "color:var(--success);";
+      else if (kind === "error") colorStyle = "color:var(--danger);";
+      else if (kind === "info") colorStyle = "color:#a5b4fc;";
+      el.innerHTML =
+        'Current version: <span id="currentVersion">' + escapeHtml(current) + '</span>' +
+        (msg ? '<div style="margin-top:6px;' + colorStyle + '">' + msg + '</div>' : "");
+    }
+
+    async function doCheckUpdate(options) {
+      const opts = options || {};
+      const btn = document.getElementById("checkUpdateBtn");
+      const installBtn = document.getElementById("installUpdateBtn");
+      btn.disabled = true;
+      btn.textContent = "Checking\u2026";
+      installBtn.style.display = "none";
+      latestUpdate = null;
+
+      try {
+        const summary = await invoke("check_for_update");
+        if (summary && summary.available) {
+          latestUpdate = summary;
+          setUpdateStatus(
+            "\u2728 A new version (v" + escapeHtml(summary.latest_version || "?") + ") is available." +
+              (summary.release_notes ? '<div style="margin-top:6px;color:var(--text-muted);white-space:pre-wrap;font-size:12px;">' + escapeHtml(summary.release_notes) + '</div>' : ""),
+            "info"
+          );
+          installBtn.style.display = "inline-flex";
+        } else {
+          if (!opts.silent) {
+            setUpdateStatus("\u2713 You're on the latest version.", "success");
+          } else {
+            setUpdateStatus("", null);
+          }
+        }
+      } catch (e) {
+        if (!opts.silent) {
+          setUpdateStatus("Check failed: " + escapeHtml(String(e)), "error");
+        } else {
+          console.warn("Silent update check failed:", e);
+        }
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "Check for Updates";
+      }
+    }
+
+    async function doInstallUpdate() {
+      if (!latestUpdate) return;
+      const btn = document.getElementById("installUpdateBtn");
+      const checkBtn = document.getElementById("checkUpdateBtn");
+      const progress = document.getElementById("updateProgress");
+      const progressBar = document.getElementById("updateProgressBar");
+      const progressText = document.getElementById("updateProgressText");
+
+      btn.disabled = true;
+      btn.textContent = "Installing\u2026";
+      checkBtn.disabled = true;
+      progress.style.display = "block";
+      progressBar.style.width = "0%";
+      progressText.textContent = "Starting download\u2026";
+
+      try {
+        await invoke("install_update");
+        // Normally the app restarts before we see this; if not, tell the user.
+        progressText.textContent = "Install complete.";
+      } catch (e) {
+        setUpdateStatus("Install failed: " + escapeHtml(String(e)), "error");
+        btn.disabled = false;
+        btn.textContent = "Install Update";
+        checkBtn.disabled = false;
+        progress.style.display = "none";
+      }
+    }
+
+    function formatBytes(n) {
+      if (!n && n !== 0) return "?";
+      const mb = n / (1024 * 1024);
+      return mb.toFixed(1) + " MB";
+    }
+
+    try {
+      const win = getCurrentWebviewWindow();
+      win.listen("updater-progress", (event) => {
+        const { downloaded, total } = event.payload || {};
+        const bar = document.getElementById("updateProgressBar");
+        const txt = document.getElementById("updateProgressText");
+        if (total && total > 0) {
+          const pct = Math.min(100, Math.round((downloaded / total) * 100));
+          bar.style.width = pct + "%";
+          txt.textContent = "Downloading\u2026 " + formatBytes(downloaded) + " / " + formatBytes(total) + " (" + pct + "%)";
+        } else {
+          txt.textContent = "Downloading\u2026 " + formatBytes(downloaded);
+        }
+      });
+      win.listen("updater-available", (event) => {
+        latestUpdate = event.payload;
+        const installBtn = document.getElementById("installUpdateBtn");
+        if (installBtn) installBtn.style.display = "inline-flex";
+        setUpdateStatus(
+          "\u2728 A new version (v" + escapeHtml(event.payload.latest_version || "?") + ") is available.",
+          "info"
+        );
+      });
+      win.listen("updater-error", (event) => {
+        setUpdateStatus("Update error: " + escapeHtml(String(event.payload)), "error");
+      });
+      win.listen("updater-manual-check", () => {
+        doCheckUpdate();
+      });
+    } catch (e) {
+      console.error("Failed to set up updater listeners:", e);
+    }
+
     // Initial load
     checkOnboarding();
     refreshStatus();
+    refreshCurrentVersion();
     setInterval(refreshStatus, 5000);
   </script>
 </body>

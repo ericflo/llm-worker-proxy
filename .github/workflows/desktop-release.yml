@@ -43,6 +43,12 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Sign updater artifacts so the desktop app's updater plugin will
+          # accept them. The private key is generated once with
+          # `cargo tauri signer generate` and stored in repo Actions secrets.
+          # See docs/auto-updates.md for setup.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           projectPath: crates/modelrelay-desktop
           tagName: ${{ github.ref_name }}
@@ -50,12 +56,17 @@ jobs:
           releaseBody: |
             ## ModelRelay Desktop ${{ github.ref_name }}
 
-            Download the installer for your platform below.
+            The app will auto-update from this release. For a fresh install,
+            download the installer for your platform below.
 
             | Platform | File |
             |----------|------|
             | Linux | `.deb`, `.AppImage` |
             | macOS | `.dmg` |
             | Windows | `.msi`, `.exe` |
+
+            Auto-updater bundles (`.app.tar.gz`, `.AppImage`, `-setup.exe`)
+            and their `.sig` files are also uploaded — these are consumed by
+            the in-app updater via https://modelrelay.io/updater/desktop/...
           releaseDraft: false
           prerelease: ${{ contains(github.ref_name, '-alpha') || contains(github.ref_name, '-beta') || contains(github.ref_name, '-rc') }}

@@ -1,6 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use modelrelay_desktop::{AppSettings, AppStatus, WorkerManager};
+use modelrelay_desktop::{AppSettings, AppStatus, WorkerManager, updater};
 use tauri::{
     Emitter, Manager,
     menu::{MenuBuilder, MenuItemBuilder},
@@ -48,6 +48,16 @@ async fn stop_worker(manager: tauri::State<'_, WorkerManager>) -> Result<(), Str
     Ok(())
 }
 
+#[tauri::command]
+async fn check_for_update(app: tauri::AppHandle) -> Result<updater::UpdateSummary, String> {
+    updater::fetch_update_summary(&app).await
+}
+
+#[tauri::command]
+async fn install_update(app: tauri::AppHandle) -> Result<(), String> {
+    updater::download_and_install(&app).await
+}
+
 fn main() {
     tracing_subscriber::fmt()
         .with_env_filter(
@@ -59,6 +69,9 @@ fn main() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
             get_has_saved_settings,
             get_status,
@@ -66,6 +79,8 @@ fn main() {
             save_settings,
             start_worker,
             stop_worker,
+            check_for_update,
+            install_update,
         ])
         .setup(|app| {
             // Determine settings file path in the app's data directory
@@ -101,11 +116,16 @@ fn main() {
 
             let show = MenuItemBuilder::with_id("show", "Open Dashboard").build(app)?;
             let settings = MenuItemBuilder::with_id("settings", "Settings").build(app)?;
+            let check_updates =
+                MenuItemBuilder::with_id("check_updates", "Check for Updates\u{2026}")
+                    .build(app)?;
             let quit = MenuItemBuilder::with_id("quit", "Quit").build(app)?;
 
             let menu = MenuBuilder::new(app)
                 .item(&show)
                 .item(&settings)
+                .separator()
+                .item(&check_updates)
                 .separator()
                 .item(&quit)
                 .build()?;
@@ -128,12 +148,24 @@ fn main() {
                             let _ = window.emit("navigate-tab", "settings");
                         }
                     }
+                    "check_updates" => {
+                        if let Some(window) = app.get_webview_window("main") {
+                            let _ = window.show();
+                            let _ = window.set_focus();
+                            let _ = window.emit("navigate-tab", "settings");
+                        }
+                        let _ = app.emit("updater-manual-check", ());
+                    }
                     "quit" => {
                         app.exit(0);
                     }
                     _ => {}
                 })
                 .build(app)?;
+
+            // Kick off a silent update check shortly after launch. Errors are
+            // logged and never block startup.
+            updater::spawn_launch_check(app.handle().clone());
 
             Ok(())
         })

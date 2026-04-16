@@ -22,6 +22,7 @@ pub mod csrf;
 mod dashboard;
 mod legal;
 mod pricing;
+mod updater;
 mod webhook;
 
 static LANDING_HTML: &str = include_str!("../../templates/index.html");
@@ -36,6 +37,10 @@ pub fn router(state: Arc<CloudState>) -> Router {
         .route(
             "/download/desktop/{platform}",
             get(desktop_download_redirect),
+        )
+        .route(
+            "/updater/desktop/{target}/{arch}/{current_version}",
+            get(updater::desktop_update_check),
         )
         .route("/health", get(health))
         .route("/pricing", get(pricing::page))
@@ -232,7 +237,7 @@ const SESSION_EXEMPT_ROUTES: &[&str] = &[
 
 /// URL prefixes that do not require a session. Use for routes with path
 /// parameters (e.g. `/download/desktop/{platform}`).
-const SESSION_EXEMPT_PREFIXES: &[&str] = &["/download/desktop/", "/webhook/"];
+const SESSION_EXEMPT_PREFIXES: &[&str] = &["/download/desktop/", "/updater/", "/webhook/"];
 
 /// Middleware that returns a styled 503 page when a session-dependent route is
 /// hit but the `SessionManagerLayer` has not injected a `Session` into the

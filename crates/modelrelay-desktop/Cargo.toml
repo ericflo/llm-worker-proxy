@@ -14,6 +14,9 @@ tauri-build = { version = "2.5", features = [] }
 [dependencies]
 tauri = { version = "2.10", features = ["tray-icon"] }
 tauri-plugin-shell = "2"
+tauri-plugin-updater = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-process = "2"
 serde = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true }
