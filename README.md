@@ -45,6 +45,20 @@ ModelRelay Desktop is a native tray application that wraps the worker daemon in 
 - Auto-start on login
 - Live model list that refreshes as your backend models change
 
+<p align="center">
+  <img src="docs/screenshots/desktop/dashboard.png" width="720" alt="ModelRelay Desktop dashboard showing connected status, relay server, active requests, and live model list">
+</p>
+
+<p align="center">
+  <em>Dashboard with live connection status and model list. Onboarding wizard and full settings pane shown below.</em>
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/desktop/onboarding.png" width="360" alt="ModelRelay Desktop onboarding wizard on the test-connection step showing a successful result">
+  &nbsp;
+  <img src="docs/screenshots/desktop/settings.png" width="360" alt="ModelRelay Desktop settings pane with connection, identity, performance, and behavior sections">
+</p>
+
 **Download:** Grab the latest installer for your platform from the [Desktop Releases](https://github.com/ericflo/modelrelay/releases?q=desktop) page.
 
 | Platform | Installer |
