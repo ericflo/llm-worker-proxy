@@ -6,7 +6,7 @@
 //! background checks are silent on "no update" and surface errors only in logs.
 
 use serde::Serialize;
-use tauri::{AppHandle, Emitter, Manager, Runtime};
+use tauri::{AppHandle, Emitter, Runtime};
 use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
 use tauri_plugin_updater::{Update, UpdaterExt};
 
@@ -43,6 +43,11 @@ impl UpdateSummary {
 }
 
 /// Look up whether a newer version is available. Does not download or install.
+///
+/// # Errors
+///
+/// Returns an error string if the updater plugin cannot be initialized or the
+/// remote update check fails (network, signature, or parse errors).
 pub async fn fetch_update_summary<R: Runtime>(app: &AppHandle<R>) -> Result<UpdateSummary, String> {
     let current = app.package_info().version.to_string();
     let updater = app.updater().map_err(|e| e.to_string())?;
@@ -58,6 +63,11 @@ pub async fn fetch_update_summary<R: Runtime>(app: &AppHandle<R>) -> Result<Upda
 ///
 /// Emits `updater-progress` events to the frontend with `{downloaded, total}`
 /// fields so a progress bar can be shown.
+///
+/// # Errors
+///
+/// Returns an error string if the updater cannot be initialized, no update is
+/// available, or the download/install step fails.
 pub async fn download_and_install<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
     let updater = app.updater().map_err(|e| e.to_string())?;
     let Some(update) = updater.check().await.map_err(|e| e.to_string())? else {
