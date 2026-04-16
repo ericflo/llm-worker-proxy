@@ -396,7 +396,14 @@ pub fn dashboard_page() -> String {
 
     let extra_body_end = ["<script>", dashboard_js, "</script>"].concat();
 
-    page_shell_custom("Dashboard", &dash_body, true, &extra_css, &extra_body_end)
+    page_shell_custom(
+        "Dashboard",
+        "/dashboard",
+        &dash_body,
+        true,
+        &extra_css,
+        &extra_body_end,
+    )
 }
 
 /// Optional configuration for embedding the setup wizard in a cloud context.
@@ -1399,7 +1406,14 @@ Get-Service ModelRelayWorker</code>
     let cloud_cfg_script = cloud_config_script(cloud_config);
     let extra_body_end = format!("{cloud_cfg_script}<script>{wizard_js}</script>");
 
-    page_shell_custom("Setup", &setup_body, logged_in, &extra_css, &extra_body_end)
+    page_shell_custom(
+        "Setup",
+        "/setup",
+        &setup_body,
+        logged_in,
+        &extra_css,
+        &extra_body_end,
+    )
 }
 
 /// Build the integration snippets page (no cloud config).
@@ -2623,6 +2637,7 @@ data: {{"type":"response.completed","response":{{"id":"resp_abc123","object":"re
 
     page_shell_custom(
         "Integrate",
+        "/integrate",
         &integrate_body,
         logged_in,
         &extra_css,
@@ -2654,10 +2669,15 @@ fn cloud_config_script(config: Option<&CloudWizardConfig>) -> String {
 ///
 /// `logged_in` controls the nav links: when `true`, shows Dashboard + Setup + Integrate +
 /// Docs + Log out; when `false`, shows Pricing + Docs + Log in + Sign up + GitHub.
+///
+/// `path` is the canonical URL path for this page (e.g. `/login`, `/pricing`, `/`).
+/// It is rendered into `og:url` and `<link rel="canonical">` so that each page has a
+/// distinct canonical URL rather than every page claiming to be the site root.
 #[must_use]
 #[allow(clippy::too_many_lines)]
 pub fn page_shell_custom(
     title: &str,
+    path: &str,
     body_html: &str,
     logged_in: bool,
     extra_css: &str,
@@ -2714,7 +2734,8 @@ pub fn page_shell_custom(
   <meta property="og:title" content="{title} — ModelRelay">
   <meta property="og:description" content="Route inference to your own GPU workers through a secure relay. OpenAI, Anthropic, and Responses API compatible.">
   <meta property="og:type" content="website">
-  <meta property="og:url" content="https://modelrelay.io">
+  <meta property="og:url" content="https://modelrelay.io{path}">
+  <link rel="canonical" href="https://modelrelay.io{path}">
   <meta name="twitter:card" content="summary">
   <meta name="twitter:title" content="{title} — ModelRelay">
   <meta name="twitter:description" content="Route inference to your own GPU workers through a secure relay. OpenAI, Anthropic, and Responses API compatible.">
@@ -2995,8 +3016,10 @@ pub fn page_shell_custom(
 
 /// Convenience wrapper: auto-adds `<h1>` before body content.
 /// Most routes use this. For custom headers, use [`page_shell_custom`] directly.
+///
+/// `path` is the canonical URL path for this page (e.g. `/login`, `/dashboard`, `/`).
 #[must_use]
-pub fn page_shell(title: &str, body_content: &str, logged_in: bool) -> String {
+pub fn page_shell(title: &str, path: &str, body_content: &str, logged_in: bool) -> String {
     let body_html = format!("<h1>{title}</h1>\n      {body_content}");
-    page_shell_custom(title, &body_html, logged_in, "", "")
+    page_shell_custom(title, path, &body_html, logged_in, "", "")
 }

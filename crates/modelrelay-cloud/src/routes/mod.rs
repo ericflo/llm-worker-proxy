@@ -76,7 +76,8 @@ async fn download_redirect() -> Redirect {
     Redirect::temporary("/#download")
 }
 
-async fn not_found() -> impl IntoResponse {
+async fn not_found(request: Request) -> impl IntoResponse {
+    let path = request.uri().path().to_owned();
     let body = r#"<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;text-align:center;padding:2rem">
 <h1 style="font-size:6rem;font-weight:800;color:#7c3aed;line-height:1;margin:0">404</h1>
 <h2 style="font-size:1.5rem;font-weight:600;margin:1rem 0 .5rem">Page Not Found</h2>
@@ -87,6 +88,7 @@ async fn not_found() -> impl IntoResponse {
         StatusCode::NOT_FOUND,
         Html(modelrelay_web::templates::page_shell(
             "404 — Not Found",
+            &path,
             body,
             false,
         )),
@@ -172,6 +174,7 @@ async fn session_guard(request: Request, next: Next) -> Response {
                 StatusCode::SERVICE_UNAVAILABLE,
                 Html(modelrelay_web::templates::page_shell(
                     "Service Unavailable",
+                    &path,
                     body,
                     false,
                 )),

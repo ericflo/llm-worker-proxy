@@ -20,6 +20,7 @@ pub fn router() -> Router {
 async fn landing() -> Html<String> {
     Html(crate::templates::page_shell(
         "ModelRelay Admin",
+        "/",
         "<div class=\"card\">\
            <h2>Welcome to ModelRelay</h2>\
            <p>This is the open-source admin dashboard for your ModelRelay deployment.</p>\

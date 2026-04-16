@@ -11,11 +11,21 @@ static CANCEL_HTML: &str = include_str!("../../templates/checkout_cancel.html");
 static SUCCESS_HTML: &str = include_str!("../../templates/checkout_success.html");
 
 fn success_page() -> String {
-    modelrelay_web::templates::page_shell("Subscription Active", SUCCESS_HTML, true)
+    modelrelay_web::templates::page_shell(
+        "Subscription Active",
+        "/checkout/success",
+        SUCCESS_HTML,
+        true,
+    )
 }
 
 fn cancel_page() -> String {
-    modelrelay_web::templates::page_shell("Checkout Cancelled", CANCEL_HTML, false)
+    modelrelay_web::templates::page_shell(
+        "Checkout Cancelled",
+        "/checkout/cancel",
+        CANCEL_HTML,
+        false,
+    )
 }
 
 /// POST /checkout — create a Stripe Checkout Session and redirect to Stripe.
@@ -26,6 +36,7 @@ pub async fn create(session: Session, State(state): State<Arc<CloudState>>) -> R
     let Some(ref key) = state.stripe_key else {
         return Html(modelrelay_web::templates::page_shell(
             "Billing Not Configured",
+            "/checkout",
             "<div class=\"card\" style=\"border-left: 3px solid #fbbf24;\">\
              <h2 style=\"display:flex;align-items:center;gap:10px;\">\
              <svg width=\"22\" height=\"22\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#fbbf24\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\
@@ -42,6 +53,7 @@ pub async fn create(session: Session, State(state): State<Arc<CloudState>>) -> R
     if price_id.is_empty() {
         return Html(modelrelay_web::templates::page_shell(
             "Billing Not Configured",
+            "/checkout",
             "<div class=\"card\" style=\"border-left: 3px solid #fbbf24;\">\
              <h2 style=\"display:flex;align-items:center;gap:10px;\">\
              <svg width=\"22\" height=\"22\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#fbbf24\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\
@@ -104,6 +116,7 @@ pub async fn create(session: Session, State(state): State<Arc<CloudState>>) -> R
                 } else {
                     Html(modelrelay_web::templates::page_shell(
                         "Checkout Error",
+                        "/checkout",
                         "<p>Stripe did not return a checkout URL.</p>\
                          <p class=\"back-link\"><a href=\"/pricing\">&larr; Back to pricing</a></p>",
                         false,
@@ -115,6 +128,7 @@ pub async fn create(session: Session, State(state): State<Arc<CloudState>>) -> R
                 tracing::error!("stripe response parse error: {e}");
                 Html(modelrelay_web::templates::page_shell(
                     "Checkout Error",
+                    "/checkout",
                     "<p>Could not process Stripe response.</p>\
                      <p class=\"back-link\"><a href=\"/pricing\">&larr; Back to pricing</a></p>",
                     false,
@@ -128,6 +142,7 @@ pub async fn create(session: Session, State(state): State<Arc<CloudState>>) -> R
             tracing::error!("stripe API error: {status} — {body}");
             Html(modelrelay_web::templates::page_shell(
                 "Checkout Error",
+                "/checkout",
                 "<p>Could not create checkout session. Please try again later.</p>\
                  <p class=\"back-link\"><a href=\"/pricing\">&larr; Back to pricing</a></p>",
                 false,
@@ -138,6 +153,7 @@ pub async fn create(session: Session, State(state): State<Arc<CloudState>>) -> R
             tracing::error!("stripe request error: {e}");
             Html(modelrelay_web::templates::page_shell(
                 "Checkout Error",
+                "/checkout",
                 "<p>Could not reach payment provider. Please try again later.</p>\
                  <p class=\"back-link\"><a href=\"/pricing\">&larr; Back to pricing</a></p>",
                 false,
