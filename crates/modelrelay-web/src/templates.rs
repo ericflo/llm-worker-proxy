@@ -2710,6 +2710,14 @@ pub fn page_shell_custom(
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{title} — ModelRelay</title>
+  <meta name="description" content="ModelRelay — Run your local GPU workers behind a managed cloud relay. OpenAI, Anthropic, and Responses API compatible.">
+  <meta property="og:title" content="{title} — ModelRelay">
+  <meta property="og:description" content="Route inference to your own GPU workers through a secure relay. OpenAI, Anthropic, and Responses API compatible.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://modelrelay.io">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="{title} — ModelRelay">
+  <meta name="twitter:description" content="Route inference to your own GPU workers through a secure relay. OpenAI, Anthropic, and Responses API compatible.">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%237c3aed'/><text x='50' y='72' font-size='60' font-weight='bold' text-anchor='middle' fill='white'>M</text></svg>">
   <style>
     *, *::before, *::after {{ box-sizing: border-box; margin: 0; padding: 0; }}
