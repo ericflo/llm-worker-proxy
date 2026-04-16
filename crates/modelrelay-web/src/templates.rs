@@ -2673,6 +2673,25 @@ fn cloud_config_script(config: Option<&CloudWizardConfig>) -> String {
 /// `path` is the canonical URL path for this page (e.g. `/login`, `/pricing`, `/`).
 /// It is rendered into `og:url` and `<link rel="canonical">` so that each page has a
 /// distinct canonical URL rather than every page claiming to be the site root.
+fn meta_description_for(title: &str) -> &'static str {
+    let t = title.to_lowercase();
+    if t.contains("sign up") {
+        "Create your ModelRelay account. Run local GPU workers, get an API key in minutes, and route OpenAI / Anthropic / Responses API traffic through your own hardware."
+    } else if t.contains("log in") {
+        "Log in to ModelRelay to manage your workers, API keys, and subscription."
+    } else if t.contains("integrat") {
+        "Drop-in OpenAI, Anthropic, and Responses API endpoints. Copy ready-to-run code samples for Python, Node, and curl to integrate ModelRelay in minutes."
+    } else if t.contains("setup") {
+        "Install and run a ModelRelay worker on your GPU box in minutes. Step-by-step setup for macOS, Linux, and Windows."
+    } else if t.contains("dashboard") {
+        "Your ModelRelay dashboard — manage workers, API keys, usage, and subscription billing."
+    } else if t.contains("checkout") || t.contains("billing") {
+        "Manage your ModelRelay subscription, billing, and payment method."
+    } else {
+        "ModelRelay — Run your local GPU workers behind a managed cloud relay. OpenAI, Anthropic, and Responses API compatible."
+    }
+}
+
 #[must_use]
 #[allow(clippy::too_many_lines)]
 pub fn page_shell_custom(
@@ -2723,6 +2742,8 @@ pub fn page_shell_custom(
         )
     };
 
+    let description = meta_description_for(title);
+
     format!(
         r##"<!DOCTYPE html>
 <html lang="en">
@@ -2730,9 +2751,9 @@ pub fn page_shell_custom(
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{title} — ModelRelay</title>
-  <meta name="description" content="ModelRelay — Run your local GPU workers behind a managed cloud relay. OpenAI, Anthropic, and Responses API compatible.">
+  <meta name="description" content="{description}">
   <meta property="og:title" content="{title} — ModelRelay">
-  <meta property="og:description" content="Route inference to your own GPU workers through a secure relay. OpenAI, Anthropic, and Responses API compatible.">
+  <meta property="og:description" content="{description}">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://modelrelay.io{path}">
   <meta property="og:image" content="https://modelrelay.io/og-image.png">
@@ -2742,7 +2763,7 @@ pub fn page_shell_custom(
   <link rel="canonical" href="https://modelrelay.io{path}">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="{title} — ModelRelay">
-  <meta name="twitter:description" content="Route inference to your own GPU workers through a secure relay. OpenAI, Anthropic, and Responses API compatible.">
+  <meta name="twitter:description" content="{description}">
   <meta name="twitter:image" content="https://modelrelay.io/og-image.png">
   <meta name="twitter:image:alt" content="ModelRelay — Managed LLM Relay for Your AI Workers">
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
@@ -3067,6 +3088,52 @@ mod tests {
         assert!(
             html.contains(r#""url": "https://modelrelay.io""#),
             "Organization schema should include the canonical site URL"
+        );
+    }
+
+    #[test]
+    fn page_shell_uses_signup_specific_description() {
+        let html = page_shell("Sign Up", "/signup", "<p>body</p>", false);
+        assert!(
+            html.contains("Create your ModelRelay account"),
+            "Sign Up page should use the signup-specific meta description"
+        );
+    }
+
+    #[test]
+    fn page_shell_uses_login_specific_description() {
+        let html = page_shell("Log In", "/login", "<p>body</p>", false);
+        assert!(
+            html.contains("Log in to ModelRelay"),
+            "Log In page should use the login-specific meta description"
+        );
+    }
+
+    #[test]
+    fn page_shell_uses_integrate_specific_description() {
+        let html = page_shell("Integrate", "/integrate", "<p>body</p>", true);
+        assert!(
+            html.contains("Drop-in OpenAI"),
+            "Integrate page should use the integrate-specific meta description"
+        );
+    }
+
+    #[test]
+    fn page_shell_uses_default_description_for_unknown_title() {
+        let html = page_shell("Random Page", "/random", "<p>body</p>", false);
+        assert!(
+            html.contains("Run your local GPU workers"),
+            "Unknown page titles should fall back to the generic default description"
+        );
+    }
+
+    #[test]
+    fn page_shell_description_appears_in_both_meta_and_og() {
+        let html = page_shell("Sign Up", "/signup", "<p>body</p>", false);
+        let signup_snippet = "Create your ModelRelay account";
+        assert!(
+            html.matches(signup_snippet).count() >= 2,
+            "Tuned description should appear in both <meta name=\"description\"> and og:description (and twitter:description)"
         );
     }
 }
