@@ -485,6 +485,30 @@ async fn pricing_page_has_og_url_and_canonical() {
         body.contains(r#"<link rel="canonical" href="https://modelrelay.io/pricing""#),
         "/pricing should have canonical link pointing at /pricing"
     );
+    assert!(
+        body.contains(r#"<meta property="og:title" content="Pricing — ModelRelay""#),
+        "/pricing should have og:title"
+    );
+    assert!(
+        body.contains(r#"<meta property="og:description""#),
+        "/pricing should have og:description"
+    );
+    assert!(
+        body.contains(r#"<meta property="og:type" content="website""#),
+        "/pricing should have og:type"
+    );
+    assert!(
+        body.contains(r#"<meta name="twitter:card" content="summary""#),
+        "/pricing should have twitter:card"
+    );
+    assert!(
+        body.contains(r#"<meta name="twitter:title" content="Pricing — ModelRelay""#),
+        "/pricing should have twitter:title"
+    );
+    assert!(
+        body.contains(r#"<meta name="twitter:description""#),
+        "/pricing should have twitter:description"
+    );
 }
 
 #[tokio::test]
