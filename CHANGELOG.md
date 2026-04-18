@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## Desktop [0.1.3] — 2026-04-18
+
+### Changed
+
+- New brand identity: carrier-pigeon silhouette with a rolled paper scroll, replacing the placeholder connection-node icon
+- Regenerated all desktop icon assets (`icon.png`, `icon.ico`, `icon.icns`, `32x32.png`, `128x128.png`, `128x128@2x.png`) with a rounded-square cream background and the pigeon mark in deep slate blue
+- Bumped `crates/modelrelay-desktop/Cargo.toml` and `tauri.conf.json` to `0.1.3` to cut the release
+
 ## [0.2.7] — 2026-04-09
 
 ### Added

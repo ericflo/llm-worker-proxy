@@ -1,6 +1,6 @@
 [package]
 name = "modelrelay-desktop"
-version = "0.1.2"
+version = "0.1.3"
 description = "Native desktop tray app for ModelRelay workers"
 edition.workspace = true
 license.workspace = true
