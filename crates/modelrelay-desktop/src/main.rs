@@ -48,6 +48,76 @@ async fn stop_worker(manager: tauri::State<'_, WorkerManager>) -> Result<(), Str
     Ok(())
 }
 
+fn build_tray(app: &tauri::App) -> tauri::Result<()> {
+    let show = MenuItemBuilder::with_id("show", "Open Dashboard").build(app)?;
+    let settings = MenuItemBuilder::with_id("settings", "Settings").build(app)?;
+    let check_updates =
+        MenuItemBuilder::with_id("check_updates", "Check for Updates\u{2026}").build(app)?;
+    let quit = MenuItemBuilder::with_id("quit", "Quit").build(app)?;
+
+    let menu = MenuBuilder::new(app)
+        .item(&show)
+        .item(&settings)
+        .separator()
+        .item(&check_updates)
+        .separator()
+        .item(&quit)
+        .build()?;
+
+    TrayIconBuilder::new()
+        .tooltip("ModelRelay - Disconnected")
+        .menu(&menu)
+        .show_menu_on_left_click(true)
+        .on_tray_icon_event(|tray, event| {
+            // Belt-and-suspenders fallback: even if the platform fails to pop
+            // the menu on left-click (seen on macOS in v0.1.3), reveal the main
+            // window so the tray is never a dead UI element.
+            if let TrayIconEvent::Click {
+                button: MouseButton::Left,
+                button_state: MouseButtonState::Up,
+                ..
+            } = event
+            {
+                let app = tray.app_handle();
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.show();
+                    let _ = window.set_focus();
+                }
+            }
+        })
+        .on_menu_event(|app, event| match event.id().as_ref() {
+            "show" => {
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.show();
+                    let _ = window.set_focus();
+                    let _ = window.emit("navigate-tab", "dashboard");
+                }
+            }
+            "settings" => {
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.show();
+                    let _ = window.set_focus();
+                    let _ = window.emit("navigate-tab", "settings");
+                }
+            }
+            "check_updates" => {
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.show();
+                    let _ = window.set_focus();
+                    let _ = window.emit("navigate-tab", "settings");
+                }
+                let _ = app.emit("updater-manual-check", ());
+            }
+            "quit" => {
+                app.exit(0);
+            }
+            _ => {}
+        })
+        .build(app)?;
+
+    Ok(())
+}
+
 #[tauri::command]
 async fn check_for_update(app: tauri::AppHandle) -> Result<updater::UpdateSummary, String> {
     updater::fetch_update_summary(&app).await
@@ -120,72 +190,7 @@ fn main() {
                 let _ = window.set_focus();
             }
 
-            let show = MenuItemBuilder::with_id("show", "Open Dashboard").build(app)?;
-            let settings = MenuItemBuilder::with_id("settings", "Settings").build(app)?;
-            let check_updates =
-                MenuItemBuilder::with_id("check_updates", "Check for Updates\u{2026}")
-                    .build(app)?;
-            let quit = MenuItemBuilder::with_id("quit", "Quit").build(app)?;
-
-            let menu = MenuBuilder::new(app)
-                .item(&show)
-                .item(&settings)
-                .separator()
-                .item(&check_updates)
-                .separator()
-                .item(&quit)
-                .build()?;
-
-            let _tray = TrayIconBuilder::new()
-                .tooltip("ModelRelay - Disconnected")
-                .menu(&menu)
-                .show_menu_on_left_click(true)
-                .on_tray_icon_event(|tray, event| {
-                    // Belt-and-suspenders fallback: even if the platform fails to pop
-                    // the menu on left-click (seen on macOS in v0.1.3), reveal the main
-                    // window so the tray is never a dead UI element.
-                    if let TrayIconEvent::Click {
-                        button: MouseButton::Left,
-                        button_state: MouseButtonState::Up,
-                        ..
-                    } = event
-                    {
-                        let app = tray.app_handle();
-                        if let Some(window) = app.get_webview_window("main") {
-                            let _ = window.show();
-                            let _ = window.set_focus();
-                        }
-                    }
-                })
-                .on_menu_event(|app, event| match event.id().as_ref() {
-                    "show" => {
-                        if let Some(window) = app.get_webview_window("main") {
-                            let _ = window.show();
-                            let _ = window.set_focus();
-                            let _ = window.emit("navigate-tab", "dashboard");
-                        }
-                    }
-                    "settings" => {
-                        if let Some(window) = app.get_webview_window("main") {
-                            let _ = window.show();
-                            let _ = window.set_focus();
-                            let _ = window.emit("navigate-tab", "settings");
-                        }
-                    }
-                    "check_updates" => {
-                        if let Some(window) = app.get_webview_window("main") {
-                            let _ = window.show();
-                            let _ = window.set_focus();
-                            let _ = window.emit("navigate-tab", "settings");
-                        }
-                        let _ = app.emit("updater-manual-check", ());
-                    }
-                    "quit" => {
-                        app.exit(0);
-                    }
-                    _ => {}
-                })
-                .build(app)?;
+            build_tray(app)?;
 
             // Kick off a silent update check shortly after launch. Errors are
             // logged and never block startup.
