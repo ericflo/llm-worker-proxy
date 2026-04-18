@@ -145,6 +145,13 @@ The Developer ID certificate is valid for five years; renew before it
 expires. The App Store Connect key can be rotated at any time — revoke
 the old one in the portal and update the three `APPLE_API_*` secrets.
 
+**Note on `.dmg` notarization.** tauri-action notarizes the `.app`
+bundle but not the `.dmg` wrapper, so the workflow has a follow-up
+`xcrun notarytool submit` + `xcrun stapler staple` step that runs on
+the `.dmg` and re-uploads it to the release. Without this step the
+downloaded `.dmg` would still trip Gatekeeper on first open even
+though the `.app` inside is fully notarized.
+
 ## Generating / Rotating the Signing Key
 
 The updater is only as trustworthy as the private key that signs bundles.
