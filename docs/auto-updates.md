@@ -79,10 +79,71 @@ repository for the release workflow to sign updater artifacts:
 |---------------------------------------|----------------------------------------------------------------------|
 | `TAURI_SIGNING_PRIVATE_KEY`           | Contents of the minisign private key file (not a path).              |
 | `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`  | Password used when the keypair was generated (empty string if none). |
+| `APPLE_CERTIFICATE`                   | Base64 of the Developer ID Application `.p12`.                       |
+| `APPLE_CERTIFICATE_PASSWORD`          | Password used when exporting the `.p12`.                             |
+| `APPLE_SIGNING_IDENTITY`              | e.g. `Developer ID Application: Eric Florenzano (F6ZGE4FAML)`.       |
+| `APPLE_API_ISSUER`                    | App Store Connect API key issuer UUID.                               |
+| `APPLE_API_KEY`                       | App Store Connect API key ID (10 chars).                             |
+| `APPLE_API_KEY_BASE64`                | Base64 of the `AuthKey_XXXX.p8` downloaded from App Store Connect.   |
 
-Without these, the workflow will still build the installers but won't
-produce `.sig` files — and the cloud updater endpoint will then return
-204 (no update) because it refuses to serve unsigned bundles.
+Without the `TAURI_SIGNING_*` secrets the workflow will still build the
+installers but won't produce `.sig` files — and the cloud updater endpoint
+will then return 204 (no update) because it refuses to serve unsigned
+bundles. Without the `APPLE_*` secrets the macOS build succeeds but
+downloaded `.dmg`s trip Gatekeeper with "ModelRelay is damaged and can't
+be opened" — see [Apple Code Signing](#apple-code-signing) below.
+
+## Apple Code Signing
+
+macOS `.dmg`s must be signed with a Developer ID Application certificate
+and notarized by Apple for Gatekeeper to accept them on a fresh install.
+The CI workflow handles signing, notarization (via `notarytool`), and
+stapling automatically when the `APPLE_*` secrets above are present;
+tauri-action creates a temp keychain, imports the `.p12`, signs with the
+hardened runtime, and submits to notarytool.
+
+**First-time setup** (per Apple Developer Program seat):
+
+1. Generate a Certificate Signing Request and keep the matching private
+   key — the `.p12` is this key plus the cert Apple issues:
+   ```bash
+   mkdir -p ~/apple-signing-setup && cd ~/apple-signing-setup
+   openssl genrsa -out developerID.key 2048
+   openssl req -new -key developerID.key -out developerID.csr \
+     -subj "/emailAddress=YOUR_EMAIL/CN=YOUR NAME/C=US"
+   ```
+2. At https://developer.apple.com/account/resources/certificates create
+   a new **Developer ID Application** certificate, upload `developerID.csr`,
+   and download the resulting `.cer`.
+3. Bundle the cert and key into a `.p12`:
+   ```bash
+   openssl x509 -inform DER -in developerID.cer -out developerID.pem
+   openssl pkcs12 -export -legacy \
+     -inkey developerID.key -in developerID.pem \
+     -out developerID.p12 -name "Developer ID Application" \
+     -passout pass:YOUR_P12_PASSWORD
+   base64 -i developerID.p12 | pbcopy   # → APPLE_CERTIFICATE
+   ```
+4. Create an **App Store Connect API key** at
+   https://appstoreconnect.apple.com/access/integrations/api with the
+   "Developer" role. Download the `.p8` (only available once — save it).
+   Note the key ID (10 chars) and the issuer UUID:
+   ```bash
+   base64 -i AuthKey_XXXXXX.p8 | pbcopy   # → APPLE_API_KEY_BASE64
+   ```
+5. Upload all six secrets to the repo:
+   ```bash
+   gh secret set APPLE_CERTIFICATE --repo ericflo/modelrelay < <(base64 -i developerID.p12)
+   gh secret set APPLE_CERTIFICATE_PASSWORD --repo ericflo/modelrelay --body 'YOUR_P12_PASSWORD'
+   gh secret set APPLE_SIGNING_IDENTITY --repo ericflo/modelrelay --body 'Developer ID Application: YOUR NAME (TEAMID)'
+   gh secret set APPLE_API_ISSUER --repo ericflo/modelrelay --body 'ISSUER_UUID'
+   gh secret set APPLE_API_KEY --repo ericflo/modelrelay --body 'KEY_ID'
+   gh secret set APPLE_API_KEY_BASE64 --repo ericflo/modelrelay < <(base64 -i AuthKey_XXXXXX.p8)
+   ```
+
+The Developer ID certificate is valid for five years; renew before it
+expires. The App Store Connect key can be rotated at any time — revoke
+the old one in the portal and update the three `APPLE_API_*` secrets.
 
 ## Generating / Rotating the Signing Key
 

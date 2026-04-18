@@ -39,6 +39,16 @@ jobs:
         with:
           key: desktop-${{ matrix.label }}
 
+      - name: Write App Store Connect API key to disk (macOS)
+        if: runner.os == 'macOS'
+        env:
+          APPLE_API_KEY_BASE64: ${{ secrets.APPLE_API_KEY_BASE64 }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/appstore"
+          printf '%s' "$APPLE_API_KEY_BASE64" | base64 --decode > "$RUNNER_TEMP/appstore/AuthKey.p8"
+          chmod 600 "$RUNNER_TEMP/appstore/AuthKey.p8"
+          echo "APPLE_API_KEY_PATH=$RUNNER_TEMP/appstore/AuthKey.p8" >> "$GITHUB_ENV"
+
       - name: Build and bundle with Tauri
         uses: tauri-apps/tauri-action@v0
         env:
@@ -49,6 +59,18 @@ jobs:
           # See docs/auto-updates.md for setup.
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # Apple Developer ID signing + notarization (macOS only — other
+          # platforms ignore these). Without them, downloaded .dmgs trip
+          # Gatekeeper with "ModelRelay is damaged and can't be opened."
+          # tauri-action creates a temp keychain, imports the cert, signs
+          # with hardened runtime, submits to notarytool, waits, and
+          # staples the bundle automatically.
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          # APPLE_API_KEY_PATH is exported by the "Write ... key to disk" step above.
         with:
           projectPath: crates/modelrelay-desktop
           tagName: ${{ github.ref_name }}
