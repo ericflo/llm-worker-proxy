@@ -41,7 +41,7 @@
       "endpoints": [
         "https://modelrelay.io/updater/desktop/{{target}}/{{arch}}/{{current_version}}"
       ],
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEJBOUY1RTgxQzMzMjU5NUEKUldSYVdUTERnVjZmdXJaUjFwMUpEZ2N0ek00QWdRblhuZzc3QlRaVnlsYmlEWEx2b1VmWEdrR0sK"
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDgzRjg1QjY1MzczRjFBNDcKUldSSEdqODNaVnY0ZzFUT2wrd1ZmQ3R3cGt4RUVEdGwzNHhjR2lhMnRwZlRSdllNOG9RK1d0R0IK"
     }
   }
 }
