@@ -4,7 +4,7 @@ use modelrelay_desktop::{AppSettings, AppStatus, WorkerManager, updater};
 use tauri::{
     Emitter, Manager,
     menu::{MenuBuilder, MenuItemBuilder},
-    tray::TrayIconBuilder,
+    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
 };
 
 #[tauri::command]
@@ -92,7 +92,10 @@ fn main() {
 
             let manager = WorkerManager::new(settings_path);
 
-            // If auto_start is enabled, start the worker immediately
+            // If auto_start is enabled and the user has a saved worker secret, start
+            // the worker immediately and stay silent in the tray. Otherwise show the
+            // main window so first-run users (and returning users without auto_start)
+            // see the onboarding/dashboard UI even if the tray click is misbehaving.
             let rt = app.handle().clone();
             let auto_start = {
                 let settings_file = app_data_dir.join("settings.json");
@@ -112,6 +115,9 @@ fn main() {
                         tracing::error!(error = %e, "auto-start failed");
                     }
                 });
+            } else if let Some(window) = app.get_webview_window("main") {
+                let _ = window.show();
+                let _ = window.set_focus();
             }
 
             let show = MenuItemBuilder::with_id("show", "Open Dashboard").build(app)?;
@@ -133,6 +139,24 @@ fn main() {
             let _tray = TrayIconBuilder::new()
                 .tooltip("ModelRelay - Disconnected")
                 .menu(&menu)
+                .show_menu_on_left_click(true)
+                .on_tray_icon_event(|tray, event| {
+                    // Belt-and-suspenders fallback: even if the platform fails to pop
+                    // the menu on left-click (seen on macOS in v0.1.3), reveal the main
+                    // window so the tray is never a dead UI element.
+                    if let TrayIconEvent::Click {
+                        button: MouseButton::Left,
+                        button_state: MouseButtonState::Up,
+                        ..
+                    } = event
+                    {
+                        let app = tray.app_handle();
+                        if let Some(window) = app.get_webview_window("main") {
+                            let _ = window.show();
+                            let _ = window.set_focus();
+                        }
+                    }
+                })
                 .on_menu_event(|app, event| match event.id().as_ref() {
                     "show" => {
                         if let Some(window) = app.get_webview_window("main") {
