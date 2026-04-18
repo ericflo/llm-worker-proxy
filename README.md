@@ -1,14 +1,24 @@
-[![CI](https://github.com/ericflo/modelrelay/actions/workflows/ci.yml/badge.svg)](https://github.com/ericflo/modelrelay/actions/workflows/ci.yml)
-[![Latest Release](https://img.shields.io/github/v/release/ericflo/modelrelay)](https://github.com/ericflo/modelrelay/releases/latest)
-[![Coverage](https://codecov.io/gh/ericflo/modelrelay/branch/main/graph/badge.svg)](https://codecov.io/gh/ericflo/modelrelay)
-[![crates.io](https://img.shields.io/crates/v/modelrelay-protocol)](https://crates.io/crates/modelrelay-protocol)
-[![Minimum Rust Version](https://img.shields.io/badge/rustc-1.94+-orange.svg)](rust-toolchain.toml)
-[![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://ericflo.github.io/modelrelay/)
-[![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+<p align="center">
+  <img src="assets/logo.png" width="180" alt="ModelRelay logo — a carrier pigeon mid-flight with a rolled scroll">
+</p>
 
-# ModelRelay
+<h1 align="center">ModelRelay</h1>
 
-**Stop configuring clients for every GPU box. Workers connect out; requests route in.**
+<p align="center">
+  <strong>Stop configuring clients for every GPU box. Workers connect out; requests route in.</strong>
+</p>
+
+<p align="center">
+  <a href="https://github.com/ericflo/modelrelay/actions/workflows/ci.yml"><img src="https://github.com/ericflo/modelrelay/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/ericflo/modelrelay/releases/latest"><img src="https://img.shields.io/github/v/release/ericflo/modelrelay" alt="Latest Release"></a>
+  <a href="https://codecov.io/gh/ericflo/modelrelay"><img src="https://codecov.io/gh/ericflo/modelrelay/branch/main/graph/badge.svg" alt="Coverage"></a>
+  <a href="https://crates.io/crates/modelrelay-protocol"><img src="https://img.shields.io/crates/v/modelrelay-protocol" alt="crates.io"></a>
+  <a href="rust-toolchain.toml"><img src="https://img.shields.io/badge/rustc-1.94+-orange.svg" alt="Minimum Rust Version"></a>
+  <a href="https://ericflo.github.io/modelrelay/"><img src="https://img.shields.io/badge/docs-GitHub%20Pages-blue" alt="Documentation"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License"></a>
+</p>
+
+---
 
 You have GPU boxes running `llama-server` (or Ollama, or vLLM, or anything OpenAI-compatible). Today you either expose each one directly — port forwarding, DNS, firewall rules — or you stick a load balancer in front that doesn't understand LLM streaming or cancellation.
 
