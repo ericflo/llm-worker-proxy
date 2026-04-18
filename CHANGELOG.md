@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## Desktop [0.1.4] — 2026-04-18
+
+### Fixed
+
+- Tray icon left-click is no longer a dead no-op on macOS: the tray menu now pops on left-click and a fallback handler shows the main window if the menu fails to open
+- Tray icon renders as a real monochrome silhouette in the macOS menu bar instead of a black square — the previous full-color carrier-pigeon `icon.png` was being declared as a template image, which macOS rendered as a solid blob
+- First launch now shows the main window so the onboarding wizard is reachable; only returning users with `auto_start` enabled and a saved worker secret get the silent tray-only launch
+
+### Added
+
+- New `crates/modelrelay-desktop/icons/tray-icon.png` and `tray-icon@2x.png` — monochrome black-on-alpha derivatives of the carrier-pigeon mark, sized for the macOS menu bar (22×22 / 44×44)
+
 ## Desktop [0.1.3] — 2026-04-18
 
 ### Changed
