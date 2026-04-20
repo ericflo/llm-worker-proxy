@@ -212,11 +212,11 @@ fn main() {
         .build(tauri::generate_context!())
         .expect("error while building tauri application");
 
-    app.run(handle_run_event);
+    app.run(|app, event| handle_run_event(app, &event));
 }
 
 #[cfg(target_os = "macos")]
-fn handle_run_event(app: &AppHandle, event: RunEvent) {
+fn handle_run_event(app: &AppHandle, event: &RunEvent) {
     // macOS sends Reopen when the user clicks the Dock icon or re-launches the
     // app from Finder while a copy is already running. Without handling it, the
     // second launch does nothing visible — exactly the "busted if you're authed"
@@ -227,4 +227,4 @@ fn handle_run_event(app: &AppHandle, event: RunEvent) {
 }
 
 #[cfg(not(target_os = "macos"))]
-fn handle_run_event(_app: &AppHandle, _event: RunEvent) {}
+fn handle_run_event(_app: &AppHandle, _event: &RunEvent) {}
