@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## Desktop [0.1.5] — 2026-04-20
+
+### Fixed
+
+- Authed users no longer see a blank desktop app on second launch: the window now always shows on startup instead of being suppressed whenever `auto_start` was enabled and a worker secret was saved. The onboarding wizard sets `auto_start: true` on finish, which meant every returning user was silently hitting the tray-only code path in v0.1.4 and could not find a way back into the UI
+- Closing the main window on macOS now hides it to the tray instead of destroying the window, so re-opening via the Dock or tray restores the same session
+- Clicking the Dock icon (or re-launching the app from Finder while a copy is already running) now re-shows and focuses the main window via a new `RunEvent::Reopen` handler, instead of doing nothing
+
+### Changed
+
+- Worker auto-start and window visibility are now decoupled — `auto_start` only controls whether the worker daemon starts automatically on launch; the dashboard window is always visible on startup. Quit remains reachable via the tray menu and Cmd+Q
+
 ## Desktop [0.1.4] — 2026-04-18
 
 ### Fixed
