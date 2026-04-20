@@ -2,10 +2,18 @@
 
 use modelrelay_desktop::{AppSettings, AppStatus, WorkerManager, updater};
 use tauri::{
-    Emitter, Manager,
+    AppHandle, Emitter, Manager, RunEvent, WindowEvent,
     menu::{MenuBuilder, MenuItemBuilder},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
 };
+
+fn show_main_window(app: &AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.unminimize();
+        let _ = window.show();
+        let _ = window.set_focus();
+    }
+}
 
 #[tauri::command]
 async fn get_has_saved_settings(manager: tauri::State<'_, WorkerManager>) -> Result<bool, String> {
@@ -137,7 +145,7 @@ fn main() {
         .with_writer(std::io::stderr)
         .init();
 
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_process::init())
@@ -152,43 +160,46 @@ fn main() {
             check_for_update,
             install_update,
         ])
+        .on_window_event(|window, event| {
+            // Hide-to-tray on close so the app keeps running and the user can
+            // re-open via the tray or (on macOS) the Dock. Quit is still reachable
+            // via the tray menu and Cmd+Q, which go through RunEvent::ExitRequested.
+            if let WindowEvent::CloseRequested { api, .. } = event {
+                api.prevent_close();
+                let _ = window.hide();
+            }
+        })
         .setup(|app| {
-            // Determine settings file path in the app's data directory
             let app_data_dir = app
                 .path()
                 .app_data_dir()
                 .unwrap_or_else(|_| std::path::PathBuf::from("."));
             let settings_path = app_data_dir.join("settings.json");
 
-            let manager = WorkerManager::new(settings_path);
+            let manager = WorkerManager::new(settings_path.clone());
 
-            // If auto_start is enabled and the user has a saved worker secret, start
-            // the worker immediately and stay silent in the tray. Otherwise show the
-            // main window so first-run users (and returning users without auto_start)
-            // see the onboarding/dashboard UI even if the tray click is misbehaving.
-            let rt = app.handle().clone();
-            let auto_start = {
-                let settings_file = app_data_dir.join("settings.json");
-                std::fs::read_to_string(settings_file)
-                    .ok()
-                    .and_then(|json| serde_json::from_str::<AppSettings>(&json).ok())
-                    .is_some_and(|s| s.auto_start && !s.worker_secret.is_empty())
-            };
+            let auto_start_worker = std::fs::read_to_string(&settings_path)
+                .ok()
+                .and_then(|json| serde_json::from_str::<AppSettings>(&json).ok())
+                .is_some_and(|s| s.auto_start && !s.worker_secret.is_empty());
 
             app.manage(manager);
 
-            if auto_start {
-                let handle = rt;
+            if auto_start_worker {
+                let handle = app.handle().clone();
                 tauri::async_runtime::spawn(async move {
                     let manager = handle.state::<WorkerManager>();
                     if let Err(e) = manager.start_worker().await {
                         tracing::error!(error = %e, "auto-start failed");
                     }
                 });
-            } else if let Some(window) = app.get_webview_window("main") {
-                let _ = window.show();
-                let _ = window.set_focus();
             }
+
+            // Always show the window on launch. Auto-start controls the worker,
+            // not window visibility — previously these were conflated, which meant
+            // every wizard-completed user (auto_start defaulted to true) became a
+            // silent-tray user on subsequent launches and appeared to have a dead app.
+            show_main_window(app.handle());
 
             build_tray(app)?;
 
@@ -198,6 +209,22 @@ fn main() {
 
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application");
+
+    app.run(handle_run_event);
 }
+
+#[cfg(target_os = "macos")]
+fn handle_run_event(app: &AppHandle, event: RunEvent) {
+    // macOS sends Reopen when the user clicks the Dock icon or re-launches the
+    // app from Finder while a copy is already running. Without handling it, the
+    // second launch does nothing visible — exactly the "busted if you're authed"
+    // symptom reported in v0.1.4.
+    if let RunEvent::Reopen { .. } = event {
+        show_main_window(app);
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn handle_run_event(_app: &AppHandle, _event: RunEvent) {}
