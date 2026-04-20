@@ -5,8 +5,34 @@ use modelrelay_worker::{WorkerDaemon, WorkerDaemonConfig};
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
+use url::Url;
 
 pub mod updater;
+
+/// Validate that `candidate` parses as an absolute http/https URL with a non-empty host.
+///
+/// The desktop app hits `backend_url` for local OpenAI-compatible servers (Ollama,
+/// LM Studio, Kiln, etc.) and `relay_url` for the relay proxy. Both must be valid
+/// before we start a worker — a malformed URL leads to confusing runtime errors
+/// in the worker loop.
+///
+/// # Errors
+/// Returns a human-readable error describing why the URL is invalid.
+pub fn validate_http_url(candidate: &str, field: &str) -> Result<(), String> {
+    let trimmed = candidate.trim();
+    if trimmed.is_empty() {
+        return Err(format!("{field} is required"));
+    }
+    let parsed = Url::parse(trimmed).map_err(|e| format!("{field} is not a valid URL: {e}"))?;
+    match parsed.scheme() {
+        "http" | "https" => {}
+        other => return Err(format!("{field} must use http or https (got '{other}')")),
+    }
+    if parsed.host_str().is_none_or(str::is_empty) {
+        return Err(format!("{field} is missing a hostname"));
+    }
+    Ok(())
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppSettings {
@@ -85,8 +111,10 @@ impl WorkerManager {
     }
 
     /// # Errors
-    /// Returns an error if settings cannot be persisted to disk.
+    /// Returns an error if URLs fail validation or settings cannot be persisted to disk.
     pub async fn save_settings(&self, new_settings: AppSettings) -> Result<(), String> {
+        validate_http_url(&new_settings.backend_url, "Backend URL")?;
+        validate_http_url(&new_settings.relay_url, "Relay Server URL")?;
         self.persist_settings(&new_settings)?;
         *self.settings.lock().await = new_settings;
         Ok(())
@@ -172,5 +200,70 @@ impl WorkerManager {
         s.connected = false;
         s.active_requests = 0;
         s.error = None;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn accepts_ollama_default() {
+        validate_http_url("http://localhost:11434", "Backend URL").unwrap();
+    }
+
+    #[test]
+    fn accepts_lm_studio_default() {
+        validate_http_url("http://localhost:1234", "Backend URL").unwrap();
+    }
+
+    #[test]
+    fn accepts_kiln_default() {
+        validate_http_url("http://localhost:8420", "Backend URL").unwrap();
+    }
+
+    #[test]
+    fn accepts_remote_https_host() {
+        validate_http_url("https://api.modelrelay.io", "Relay Server URL").unwrap();
+    }
+
+    #[test]
+    fn accepts_ip_and_path() {
+        validate_http_url("http://192.168.1.42:11434/v1", "Backend URL").unwrap();
+    }
+
+    #[test]
+    fn rejects_empty() {
+        let err = validate_http_url("", "Backend URL").unwrap_err();
+        assert!(err.contains("required"), "got: {err}");
+    }
+
+    #[test]
+    fn rejects_whitespace_only() {
+        let err = validate_http_url("   ", "Backend URL").unwrap_err();
+        assert!(err.contains("required"), "got: {err}");
+    }
+
+    #[test]
+    fn rejects_missing_scheme() {
+        assert!(validate_http_url("localhost:11434", "Backend URL").is_err());
+    }
+
+    #[test]
+    fn rejects_garbage() {
+        assert!(validate_http_url("not a url", "Backend URL").is_err());
+    }
+
+    #[test]
+    fn rejects_non_http_scheme() {
+        let err = validate_http_url("ftp://localhost:11434", "Backend URL").unwrap_err();
+        assert!(err.contains("http or https"), "got: {err}");
+    }
+
+    #[test]
+    fn rejects_missing_host() {
+        // The url crate rejects empty authority like `http://:8080/x` with
+        // an "empty host" error — make sure we surface that as a validation failure.
+        assert!(validate_http_url("http://:8080/x", "Backend URL").is_err());
     }
 }

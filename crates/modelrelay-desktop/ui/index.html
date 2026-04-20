@@ -325,6 +325,15 @@
       margin-top: 4px;
       line-height: 1.4;
     }
+    .form-group .field-error {
+      font-size: 11px;
+      color: var(--danger);
+      margin-top: 4px;
+      line-height: 1.4;
+      display: none;
+    }
+    .form-group.has-error .field-error { display: block; }
+    .form-group.has-error .hint { display: none; }
 
     .form-group input[type="text"],
     .form-group input[type="password"],
@@ -495,10 +504,11 @@
       <!-- Step 0: Backend URL -->
       <div class="wizard-panel active" data-panel="0">
         <div class="card">
-          <div class="form-group">
+          <div class="form-group" id="wizBackendUrlGroup">
             <label for="wizBackendUrl">Backend URL</label>
             <input type="text" id="wizBackendUrl" placeholder="http://localhost:11434" value="http://localhost:11434">
-            <div class="hint">The address of your local LLM server (Ollama, LM Studio, etc).</div>
+            <div class="hint">The address of your local LLM server. Examples: Ollama <code>http://localhost:11434</code>, LM Studio <code>http://localhost:1234</code>, Kiln <code>http://localhost:8420</code>.</div>
+            <div class="field-error" id="wizBackendUrlError"></div>
           </div>
         </div>
         <div class="wizard-nav">
@@ -509,9 +519,10 @@
       <!-- Step 1: Relay Server + Secret -->
       <div class="wizard-panel" data-panel="1">
         <div class="card">
-          <div class="form-group">
+          <div class="form-group" id="wizRelayUrlGroup">
             <label for="wizRelayUrl">Relay Server URL</label>
             <input type="text" id="wizRelayUrl" placeholder="https://api.modelrelay.io" value="https://api.modelrelay.io">
+            <div class="field-error" id="wizRelayUrlError"></div>
           </div>
           <div class="form-group">
             <label for="wizWorkerSecret">Worker Secret / API Key</label>
@@ -616,14 +627,16 @@
       <!-- Connection section -->
       <div class="form-section">
         <div class="form-section-title">Connection</div>
-        <div class="form-group">
+        <div class="form-group" id="backendUrlGroup">
           <label for="backendUrl">Backend URL</label>
           <input type="text" id="backendUrl" placeholder="http://localhost:11434">
-          <div class="hint">Local LLM server address (Ollama, LM Studio, vLLM, etc.)</div>
+          <div class="hint">Local LLM server address. Common defaults: Ollama <code>http://localhost:11434</code>, LM Studio <code>http://localhost:1234</code>, Kiln <code>http://localhost:8420</code>. Remote servers, Docker hosts, and custom ports are all supported.</div>
+          <div class="field-error" id="backendUrlError"></div>
         </div>
-        <div class="form-group">
+        <div class="form-group" id="relayUrlGroup">
           <label for="relayUrlSetting">Relay Server URL</label>
           <input type="text" id="relayUrlSetting" placeholder="https://api.modelrelay.io">
+          <div class="field-error" id="relayUrlError"></div>
         </div>
         <div class="form-group">
           <label for="workerSecret">Worker Secret / API Key</label>
@@ -834,6 +847,50 @@
       }
     }
 
+    // Validate an http(s) URL string. Mirrors validate_http_url in src/lib.rs
+    // so the UI blocks obviously-bad input before the Rust command re-checks.
+    function validateHttpUrl(candidate, field) {
+      const trimmed = (candidate || "").trim();
+      if (!trimmed) return field + " is required";
+      let parsed;
+      try {
+        parsed = new URL(trimmed);
+      } catch (_e) {
+        return field + " is not a valid URL";
+      }
+      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+        return field + " must use http or https";
+      }
+      if (!parsed.hostname) return field + " is missing a hostname";
+      return null;
+    }
+
+    function setFieldError(groupId, errorId, message) {
+      const group = document.getElementById(groupId);
+      const errEl = document.getElementById(errorId);
+      const input = group ? group.querySelector("input") : null;
+      if (!group || !errEl || !input) return;
+      if (message) {
+        group.classList.add("has-error");
+        input.classList.add("invalid");
+        errEl.textContent = message;
+      } else {
+        group.classList.remove("has-error");
+        input.classList.remove("invalid");
+        errEl.textContent = "";
+      }
+    }
+
+    function validateSettingsForm() {
+      const backendErr = validateHttpUrl(document.getElementById("backendUrl").value, "Backend URL");
+      const relayErr = validateHttpUrl(document.getElementById("relayUrlSetting").value, "Relay Server URL");
+      setFieldError("backendUrlGroup", "backendUrlError", backendErr);
+      setFieldError("relayUrlGroup", "relayUrlError", relayErr);
+      const saveBtn = document.querySelector("#tab-settings .btn-save");
+      if (saveBtn) saveBtn.disabled = Boolean(backendErr || relayErr);
+      return !(backendErr || relayErr);
+    }
+
     // Settings: load and save
     async function loadSettings() {
       try {
@@ -847,15 +904,31 @@
         document.getElementById("maxConcurrent").value = s.max_concurrent;
         document.getElementById("pollInterval").value = s.poll_interval_secs;
         document.getElementById("autoStart").checked = s.auto_start;
+        validateSettingsForm();
       } catch (e) {
         console.error("Failed to load settings:", e);
       }
     }
 
+    // Attach live validation to the two URL fields on the settings form.
+    ["backendUrl", "relayUrlSetting"].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.addEventListener("input", validateSettingsForm);
+        el.addEventListener("blur", validateSettingsForm);
+      }
+    });
+
     async function doSave() {
       const feedback = document.getElementById("saveFeedback");
       feedback.textContent = "";
       feedback.className = "save-feedback";
+
+      if (!validateSettingsForm()) {
+        feedback.textContent = "Fix the errors above before saving.";
+        feedback.className = "save-feedback error";
+        return;
+      }
 
       try {
         const modelsRaw = document.getElementById("modelsInput").value;
@@ -899,7 +972,21 @@
     }
 
     function wizardNext() {
+      if (wizardStep === 0) {
+        const err = validateHttpUrl(document.getElementById("wizBackendUrl").value, "Backend URL");
+        setFieldError("wizBackendUrlGroup", "wizBackendUrlError", err);
+        if (err) {
+          document.getElementById("wizBackendUrl").focus();
+          return;
+        }
+      }
       if (wizardStep === 1) {
+        const relayErr = validateHttpUrl(document.getElementById("wizRelayUrl").value, "Relay Server URL");
+        setFieldError("wizRelayUrlGroup", "wizRelayUrlError", relayErr);
+        if (relayErr) {
+          document.getElementById("wizRelayUrl").focus();
+          return;
+        }
         const secret = document.getElementById("wizWorkerSecret").value.trim();
         if (!secret) {
           const input = document.getElementById("wizWorkerSecret");
@@ -912,6 +999,19 @@
       wizardStep = Math.min(wizardStep + 1, 2);
       wizardUpdateDots();
     }
+
+    // Clear wizard errors as the user fixes them.
+    ["wizBackendUrl", "wizRelayUrl"].forEach((id) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.addEventListener("input", () => {
+        const groupId = id + "Group";
+        const errorId = id + "Error";
+        const label = id === "wizBackendUrl" ? "Backend URL" : "Relay Server URL";
+        const err = validateHttpUrl(el.value, label);
+        setFieldError(groupId, errorId, err);
+      });
+    });
 
     function wizardBack() {
       wizardStep = Math.max(wizardStep - 1, 0);
