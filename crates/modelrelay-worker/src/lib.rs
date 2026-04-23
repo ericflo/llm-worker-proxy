@@ -14,15 +14,24 @@ use tokio::{
 };
 use tokio_tungstenite::{
     connect_async,
-    tungstenite::{Message, client::IntoClientRequest},
+    tungstenite::{Message, Bytes, client::IntoClientRequest},
 };
 
 /// How long the worker waits without receiving any message from the server
 /// (including pings) before assuming the connection is dead and reconnecting.
-/// The server sends application-level pings every 30 s, so 90 s (3× that)
-/// gives plenty of margin for transient delays while still catching truly
-/// dead connections within a couple of minutes.
-const IDLE_TIMEOUT: Duration = Duration::from_secs(90);
+/// The server sends application-level pings every 30 s, and we now also send
+/// client-initiated WebSocket pings every `CLIENT_PING_INTERVAL`, so 60 s
+/// (3–4× the fastest signal) is plenty of margin for transient delays while
+/// catching truly dead connections within a minute rather than 90 s.
+const IDLE_TIMEOUT: Duration = Duration::from_secs(60);
+
+/// How often the worker sends a protocol-level WebSocket Ping frame to the
+/// server. This matters because some middleboxes (NAT, load balancers,
+/// Kubernetes ingresses) silently drop idle connections, leaving both sides
+/// with a half-open TCP socket that never surfaces a read error. Proactively
+/// writing to the socket detects those breakages via `socket_write.send`
+/// returning an error, triggering an immediate reconnect.
+const CLIENT_PING_INTERVAL: Duration = Duration::from_secs(15);
 
 type BoxError = Box<dyn Error + Send + Sync>;
 type WebSocketStream =
@@ -145,6 +154,13 @@ impl WorkerDaemon {
         let mut shutting_down = false;
         let mut last_server_activity = Instant::now();
 
+        // Client-initiated pings. We use `interval` with `MissedTickBehavior::Delay`
+        // so a slow tick doesn't queue up extra pings, and skip the immediate first
+        // tick so we don't burn a ping on freshly-registered connections.
+        let mut ping_ticker = tokio::time::interval(CLIENT_PING_INTERVAL);
+        ping_ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+        ping_ticker.tick().await; // consume the immediate first tick
+
         send_worker_message(
             &mut socket_write,
             &WorkerToServerMessage::Register(RegisterMessage {
@@ -220,6 +236,25 @@ impl WorkerDaemon {
                         "no messages received from server within idle timeout, assuming dead connection"
                     );
                     break;
+                }
+                _ = ping_ticker.tick() => {
+                    // Proactively detect silently-half-open sockets (NAT eviction,
+                    // middlebox reset) by writing a WS Ping frame. If the send
+                    // fails, the session is definitely dead; bubble up via `?`
+                    // so `run_with_reconnect` re-establishes the WebSocket and
+                    // re-registers the worker (clearing any stale server-side
+                    // routing entry).
+                    if let Err(e) = socket_write
+                        .send(Message::Ping(Bytes::new()))
+                        .await
+                    {
+                        tracing::warn!(
+                            error = %e,
+                            "client-initiated ping failed; connection is dead, reconnecting"
+                        );
+                        break;
+                    }
+                    tracing::trace!("sent client-initiated ws ping");
                 }
             }
         }
