@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## Desktop [0.1.7] — 2026-04-23
+
+### Changed
+
+- Recut the desktop release as `desktop-v0.1.7` from the current `main` commit to supersede the bad `desktop-v0.1.6` publish, whose assets were incorrectly still stamped `0.1.5`
+- Bumped desktop package metadata to `0.1.7` so installer filenames, updater metadata, and the GitHub release tag all agree
+
+## [0.1.7] — 2026-04-23
+
+### Changed
+
+- Recut the OSS server/worker release line as `v0.1.7` so the public GitHub release, crates metadata, and desktop version all converge on the same version after the bad April 2026 release sequence
+- Bumped workspace crate versions to `0.1.7` for this coordinated release cut
+
 ## Desktop [0.1.5] — 2026-04-20
 
 ### Fixed
@@ -280,7 +294,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Cross-platform release binaries (Linux x86_64/aarch64, macOS x86_64/aarch64) via GitHub Actions.
 - CI pipeline with formatting, linting, and test checks.
 
-[Unreleased]: https://github.com/ericflo/modelrelay/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/ericflo/modelrelay/compare/v0.1.7...HEAD
+[0.1.7]: https://github.com/ericflo/modelrelay/compare/v0.1.6...v0.1.7
 [0.2.1]: https://github.com/ericflo/modelrelay/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/ericflo/modelrelay/compare/v0.1.6...v0.2.0
 [0.1.6]: https://github.com/ericflo/modelrelay/compare/v0.1.5...v0.1.6
