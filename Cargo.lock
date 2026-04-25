@@ -531,9 +531,9 @@ dependencies = [
 
 [[package]]
 name = "clap_complete"
-version = "4.6.1"
+version = "4.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "406e68b4de5c59cfb8f750a7cbd4d31ae153788b8352167c1e5f4fc26e8c91e9"
+checksum = "3ff7a1dccbdd8b078c2bdebff47e404615151534d5043da397ec50286816f9cb"
 dependencies = [
  "clap",
 ]
@@ -2534,7 +2534,7 @@ dependencies = [
 
 [[package]]
 name = "modelrelay-cloud"
-version = "0.2.7"
+version = "0.1.7"
 dependencies = [
  "argon2",
  "axum",
@@ -2561,7 +2561,7 @@ dependencies = [
 
 [[package]]
 name = "modelrelay-contract-tests"
-version = "0.2.7"
+version = "0.1.7"
 dependencies = [
  "axum",
  "modelrelay-protocol",
@@ -2573,7 +2573,7 @@ dependencies = [
 
 [[package]]
 name = "modelrelay-desktop"
-version = "0.1.5"
+version = "0.1.7"
 dependencies = [
  "modelrelay-protocol",
  "modelrelay-worker",
@@ -2593,7 +2593,7 @@ dependencies = [
 
 [[package]]
 name = "modelrelay-protocol"
-version = "0.2.7"
+version = "0.1.7"
 dependencies = [
  "serde",
  "serde_json",
@@ -2601,7 +2601,7 @@ dependencies = [
 
 [[package]]
 name = "modelrelay-server"
-version = "0.2.7"
+version = "0.1.7"
 dependencies = [
  "async-trait",
  "axum",
@@ -2628,7 +2628,7 @@ dependencies = [
 
 [[package]]
 name = "modelrelay-web"
-version = "0.2.7"
+version = "0.1.7"
 dependencies = [
  "axum",
  "serde",
@@ -2642,7 +2642,7 @@ dependencies = [
 
 [[package]]
 name = "modelrelay-worker"
-version = "0.2.7"
+version = "0.1.7"
 dependencies = [
  "axum",
  "clap",
