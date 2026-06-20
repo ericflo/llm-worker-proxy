@@ -24,7 +24,7 @@ jobs:
             label: windows
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Install Tauri system dependencies (Linux)
         if: runner.os == 'Linux'
