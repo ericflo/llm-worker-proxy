@@ -50,7 +50,7 @@ jobs:
           echo "APPLE_API_KEY_PATH=$RUNNER_TEMP/appstore/AuthKey.p8" >> "$GITHUB_ENV"
 
       - name: Build and bundle with Tauri
-        uses: tauri-apps/tauri-action@v0
+        uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Sign updater artifacts so the desktop app's updater plugin will
