@@ -17,6 +17,8 @@ pub const API_KEY_RANDOM_LEN: usize = 32;
 pub enum StoreError {
     /// The provided id was not a valid format (e.g. not a UUID).
     BadId,
+    /// The provided API key did not use the native `mr_live_` format.
+    BadKey,
     /// An internal / database error.
     Internal(String),
 }
@@ -25,6 +27,7 @@ impl fmt::Display for StoreError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::BadId => write!(f, "invalid key id"),
+            Self::BadKey => write!(f, "invalid API key"),
             Self::Internal(msg) => write!(f, "store error: {msg}"),
         }
     }
@@ -155,6 +158,7 @@ impl ApiKeyStore for InMemoryApiKeyStore {
 mod postgres_store {
     use super::{
         API_KEY_PREFIX, ApiKeyMetadata, ApiKeyStore, StoreError, generate_api_key, sha256_hash,
+        valid_api_key,
     };
 
     /// Row shape for `SELECT ... FROM server_api_keys`.
@@ -192,6 +196,80 @@ mod postgres_store {
         #[must_use]
         pub fn new(pool: sqlx::PgPool) -> Self {
             Self { pool }
+        }
+
+        /// Ensure a pre-existing raw key is represented in the persistent
+        /// store without ever retaining the raw value. This is intended for
+        /// recovery and migration, where clients already hold a key that must
+        /// remain valid after rebuilding the server database.
+        ///
+        /// The operation is idempotent. A previously revoked matching key is
+        /// never resurrected.
+        pub async fn ensure_imported_key(
+            &self,
+            name: &str,
+            raw_key: &str,
+        ) -> Result<ApiKeyMetadata, StoreError> {
+            if !valid_api_key(raw_key) {
+                return Err(StoreError::BadKey);
+            }
+
+            let hash = sha256_hash(raw_key.as_bytes());
+            let prefix: String = raw_key.chars().take(8 + API_KEY_PREFIX.len()).collect();
+            let mut transaction = self
+                .pool
+                .begin()
+                .await
+                .map_err(|error| StoreError::Internal(error.to_string()))?;
+
+            // Serialize bootstrap imports so two starting replicas cannot
+            // insert the same key independently.
+            sqlx::query("LOCK TABLE server_api_keys IN SHARE ROW EXCLUSIVE MODE")
+                .execute(&mut *transaction)
+                .await
+                .map_err(|error| StoreError::Internal(error.to_string()))?;
+
+            let existing = sqlx::query_as::<_, KeyRow>(
+                "SELECT id, name, prefix, created_at, last_used_at, revoked_at \
+                 FROM server_api_keys WHERE hash = $1 \
+                 ORDER BY (revoked_at IS NULL) DESC, created_at DESC LIMIT 1",
+            )
+            .bind(&hash[..])
+            .fetch_optional(&mut *transaction)
+            .await
+            .map_err(|error| StoreError::Internal(error.to_string()))?;
+
+            if let Some(row) = existing {
+                if row.revoked_at.is_some() {
+                    return Err(StoreError::Internal(
+                        "bootstrap API key was previously revoked".to_string(),
+                    ));
+                }
+                transaction
+                    .commit()
+                    .await
+                    .map_err(|error| StoreError::Internal(error.to_string()))?;
+                return Ok(ApiKeyMetadata::from(row));
+            }
+
+            let row = sqlx::query_as::<_, KeyRow>(
+                "INSERT INTO server_api_keys (id, name, prefix, hash) \
+                 VALUES ($1, $2, $3, $4) \
+                 RETURNING id, name, prefix, created_at, last_used_at, revoked_at",
+            )
+            .bind(uuid::Uuid::new_v4())
+            .bind(name)
+            .bind(prefix)
+            .bind(&hash[..])
+            .fetch_one(&mut *transaction)
+            .await
+            .map_err(|error| StoreError::Internal(error.to_string()))?;
+
+            transaction
+                .commit()
+                .await
+                .map_err(|error| StoreError::Internal(error.to_string()))?;
+            Ok(ApiKeyMetadata::from(row))
         }
     }
 
@@ -299,9 +377,44 @@ pub fn sha256_hash(data: &[u8]) -> [u8; 32] {
     hasher.finalize().into()
 }
 
+fn valid_api_key(raw_key: &str) -> bool {
+    raw_key.strip_prefix(API_KEY_PREFIX).is_some_and(|suffix| {
+        suffix.len() == API_KEY_RANDOM_LEN
+            && suffix.is_ascii()
+            && suffix.bytes().all(|byte| byte.is_ascii_alphanumeric())
+    })
+}
+
 fn now_epoch() -> u64 {
     SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{API_KEY_PREFIX, API_KEY_RANDOM_LEN, generate_api_key, valid_api_key};
+
+    #[test]
+    fn generated_keys_are_importable() {
+        assert!(valid_api_key(&generate_api_key()));
+    }
+
+    #[test]
+    fn imported_keys_require_the_exact_native_format() {
+        assert!(valid_api_key(&format!(
+            "{API_KEY_PREFIX}{}",
+            "a".repeat(API_KEY_RANDOM_LEN)
+        )));
+        assert!(!valid_api_key("not-a-modelrelay-key"));
+        assert!(!valid_api_key(&format!(
+            "{API_KEY_PREFIX}{}",
+            "a".repeat(API_KEY_RANDOM_LEN - 1)
+        )));
+        assert!(!valid_api_key(&format!(
+            "{API_KEY_PREFIX}{}!",
+            "a".repeat(API_KEY_RANDOM_LEN - 1)
+        )));
+    }
 }

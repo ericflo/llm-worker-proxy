@@ -62,6 +62,11 @@ struct Args {
     #[arg(long, env = "DATABASE_URL")]
     database_url: Option<String>,
 
+    /// Existing native API key to hash-import into a rebuilt PostgreSQL store.
+    /// The raw key is never persisted. A matching revoked key fails startup.
+    #[arg(long, env = "MODELRELAY_BOOTSTRAP_API_KEY")]
+    bootstrap_api_key: Option<String>,
+
     /// Generate shell completion script for the given shell and exit
     #[arg(long, value_name = "SHELL", hide = true)]
     completions: Option<Shell>,
@@ -112,7 +117,11 @@ async fn main() {
         );
     }
 
-    let api_key_store = build_api_key_store(args.database_url.as_deref()).await;
+    let api_key_store = build_api_key_store(
+        args.database_url.as_deref(),
+        args.bootstrap_api_key.as_deref(),
+    )
+    .await;
 
     let mut worker_socket_app =
         WorkerSocketApp::new(Arc::clone(&core)).with_api_key_store(Arc::clone(&api_key_store));
@@ -186,7 +195,10 @@ async fn main() {
         .expect("server error");
 }
 
-async fn build_api_key_store(database_url: Option<&str>) -> Arc<dyn ApiKeyStore> {
+async fn build_api_key_store(
+    database_url: Option<&str>,
+    bootstrap_api_key: Option<&str>,
+) -> Arc<dyn ApiKeyStore> {
     match database_url {
         #[cfg(feature = "postgres")]
         Some(url) => {
@@ -197,14 +209,26 @@ async fn build_api_key_store(database_url: Option<&str>) -> Arc<dyn ApiKeyStore>
                 .run(&pool)
                 .await
                 .expect("failed to run server migrations");
+            let store = modelrelay_server::PostgresApiKeyStore::new(pool);
+            if let Some(raw_key) = bootstrap_api_key {
+                store
+                    .ensure_imported_key("recovered-bootstrap-key", raw_key)
+                    .await
+                    .expect("failed to import MODELRELAY_BOOTSTRAP_API_KEY");
+                tracing::info!("recovery API key is present in the persistent store");
+            }
             tracing::info!("api key store: postgres-backed");
-            Arc::new(modelrelay_server::PostgresApiKeyStore::new(pool))
+            Arc::new(store)
         }
         #[cfg(not(feature = "postgres"))]
         Some(_) => {
             panic!("DATABASE_URL set but server was compiled without the `postgres` feature");
         }
         None => {
+            assert!(
+                bootstrap_api_key.is_none(),
+                "MODELRELAY_BOOTSTRAP_API_KEY requires DATABASE_URL"
+            );
             tracing::warn!(
                 "DATABASE_URL not set \u{2014} using in-memory API key store \
                  (single-pod only, keys lost on restart)"
