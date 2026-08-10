@@ -45,7 +45,7 @@ pub fn router(state: Arc<CloudState>) -> Router {
         .route("/health", get(health))
         .route("/pricing", get(pricing::page))
         .route("/privacy", get(legal::privacy_page))
-        .route("/signup", get(auth::signup_page).post(auth::signup_submit))
+        .route("/signup", get(signup_closed).post(signup_closed))
         .route("/terms", get(legal::terms_page))
         .route("/login", get(auth::login_page).post(auth::login_submit))
         .route("/logout", post(auth::logout))
@@ -77,6 +77,27 @@ pub fn router(state: Arc<CloudState>) -> Router {
 
 async fn landing() -> Html<&'static str> {
     Html(LANDING_HTML)
+}
+
+/// Public account creation is intentionally closed while the hosted service is
+/// being recovered. This is deliberately a fixed route, not a runtime flag, so
+/// a missing or stale environment variable cannot reopen signup.
+async fn signup_closed() -> impl IntoResponse {
+    let body = r#"<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;text-align:center;padding:2rem">
+<h1 style="font-size:3rem;font-weight:800;color:#a78bfa;line-height:1;margin:0">Signups Closed</h1>
+<p style="color:#8b949e;max-width:32rem;margin:1.5rem 0 2rem">New account registration is currently closed. Existing users can still log in.</p>
+<a href="/login" style="display:inline-block;padding:.75rem 2rem;background:#7c3aed;color:#fff;text-decoration:none;border-radius:.5rem;font-weight:600">Log In</a>
+</div>"#;
+
+    (
+        StatusCode::GONE,
+        Html(modelrelay_web::templates::page_shell(
+            "Signups Closed",
+            "/signup",
+            body,
+            false,
+        )),
+    )
 }
 
 /// Redirect `/download` to the `#download` section on the landing page.
@@ -125,8 +146,6 @@ async fn sitemap_xml() -> impl IntoResponse {
         r#"<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url><loc>https://modelrelay.io/</loc></url>
-  <url><loc>https://modelrelay.io/pricing</loc></url>
-  <url><loc>https://modelrelay.io/signup</loc></url>
   <url><loc>https://modelrelay.io/login</loc></url>
   <url><loc>https://modelrelay.io/setup</loc></url>
   <url><loc>https://modelrelay.io/integrate</loc></url>
@@ -232,6 +251,7 @@ const SESSION_EXEMPT_ROUTES: &[&str] = &[
     "/checkout/cancel",
     "/terms",
     "/privacy",
+    "/signup",
 ];
 
 /// URL prefixes that do not require a session. Use for routes with path

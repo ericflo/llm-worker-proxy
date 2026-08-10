@@ -1,9 +1,13 @@
 use std::net::IpAddr;
 use std::sync::Arc;
 
+#[cfg(test)]
+use argon2::PasswordHasher;
+#[cfg(test)]
 use argon2::password_hash::SaltString;
+#[cfg(test)]
 use argon2::password_hash::rand_core::OsRng;
-use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier};
+use argon2::{Argon2, PasswordHash, PasswordVerifier};
 use axum::Form;
 use axum::extract::State;
 use axum::http::{HeaderMap, StatusCode};
@@ -29,7 +33,7 @@ fn client_ip(headers: &HeaderMap) -> IpAddr {
 /// Render a 429 Too Many Requests page.
 ///
 /// `path` is the canonical URL path of the request that triggered the rate limit
-/// (e.g. `/signup` or `/login`), used for per-page og:url and canonical.
+/// (currently `/login`), used for per-page og:url and canonical.
 fn rate_limit_response(path: &str) -> Response {
     let body = "\
 <div class=\"card\" style=\"border-left: 3px solid #fbbf24;\">\
@@ -37,7 +41,7 @@ fn rate_limit_response(path: &str) -> Response {
     <svg width=\"22\" height=\"22\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#fbbf24\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><polyline points=\"12 6 12 12 16 14\"/></svg>\
     Slow down\
   </h2>\
-  <p>You've made too many login or sign-up attempts. Please wait <strong>15 minutes</strong> before trying again.</p>\
+  <p>You've made too many login attempts. Please wait <strong>15 minutes</strong> before trying again.</p>\
   <p style=\"margin-top:12px;color:#8b949e;font-size:0.9rem;\">This limit protects your account from unauthorized access attempts.</p>\
   <a href=\"/\" class=\"btn\" style=\"margin-top:20px;\">Back to Home</a>\
 </div>";
@@ -46,170 +50,11 @@ fn rate_limit_response(path: &str) -> Response {
 }
 
 #[derive(Deserialize)]
-pub struct SignupForm {
-    email: String,
-    password: String,
-    #[allow(dead_code)]
-    _csrf: Option<String>,
-}
-
-#[derive(Deserialize)]
 pub struct LoginForm {
     email: String,
     password: String,
     #[allow(dead_code)]
     _csrf: Option<String>,
-}
-
-/// GET /signup — render the sign-up form.
-pub async fn signup_page(session: Session) -> Response {
-    // If already logged in, redirect to dashboard
-    if let Ok(Some(_)) = session.get::<String>("user_id").await {
-        return Redirect::to("/dashboard").into_response();
-    }
-    let csrf_field = csrf::hidden_field(&session).await;
-    Html(modelrelay_web::templates::page_shell(
-        "Sign Up",
-        "/signup",
-        &signup_form_html(None, &csrf_field),
-        false,
-    ))
-    .into_response()
-}
-
-/// POST /signup — create a new user account.
-#[allow(clippy::too_many_lines)]
-pub async fn signup_submit(
-    headers: HeaderMap,
-    session: Session,
-    State(state): State<Arc<CloudState>>,
-    Form(form): Form<SignupForm>,
-) -> Response {
-    let ip = client_ip(&headers);
-    if state.rate_limiter.is_limited(ip) {
-        return rate_limit_response("/signup");
-    }
-
-    let csrf_field = csrf::hidden_field(&session).await;
-
-    let Some(ref pool) = state.db else {
-        return Html(modelrelay_web::templates::page_shell(
-            "Sign Up",
-            "/signup",
-            "<div class=\"card\"><h2>Error</h2><p>Database not available.</p></div>",
-            false,
-        ))
-        .into_response();
-    };
-
-    let email = form.email.trim().to_lowercase();
-    let password = form.password.clone();
-
-    // Basic validation
-    if email.is_empty() || !email.contains('@') {
-        return Html(modelrelay_web::templates::page_shell(
-            "Sign Up",
-            "/signup",
-            &signup_form_html(Some("Please enter a valid email address."), &csrf_field),
-            false,
-        ))
-        .into_response();
-    }
-    if password.len() < 8 {
-        return Html(modelrelay_web::templates::page_shell(
-            "Sign Up",
-            "/signup",
-            &signup_form_html(Some("Password must be at least 8 characters."), &csrf_field),
-            false,
-        ))
-        .into_response();
-    }
-
-    // Check if user already exists with a password
-    let existing: Option<(uuid::Uuid, Option<String>)> =
-        sqlx::query_as("SELECT id, password_hash FROM users WHERE email = $1")
-            .bind(&email)
-            .fetch_optional(pool)
-            .await
-            .unwrap_or(None);
-
-    if let Some((_, Some(_))) = existing {
-        state.rate_limiter.record_attempt(ip);
-        return Html(modelrelay_web::templates::page_shell(
-            "Sign Up",
-            "/signup",
-            &signup_form_html(
-                Some("An account with this email already exists. <a href=\"/login\">Log in instead</a>."),
-                &csrf_field,
-            ),
-            false,
-        ))
-        .into_response();
-    }
-
-    // Hash password
-    let password_hash = match hash_password(&password) {
-        Ok(h) => h,
-        Err(e) => {
-            tracing::error!("password hash error: {e}");
-            return Html(modelrelay_web::templates::page_shell(
-                "Sign Up",
-                "/signup",
-                &signup_form_html(Some("Internal error. Please try again."), &csrf_field),
-                false,
-            ))
-            .into_response();
-        }
-    };
-
-    // Insert or update user (user may already exist from Stripe checkout without a password)
-    let user_id: Result<uuid::Uuid, _> = sqlx::query_scalar(
-        "INSERT INTO users (email, password_hash) VALUES ($1, $2) \
-         ON CONFLICT (email) DO UPDATE SET password_hash = EXCLUDED.password_hash \
-         WHERE users.password_hash IS NULL \
-         RETURNING id",
-    )
-    .bind(&email)
-    .bind(&password_hash)
-    .fetch_one(pool)
-    .await;
-
-    let user_id = match user_id {
-        Ok(id) => id,
-        Err(e) => {
-            tracing::error!("user insert error: {e}");
-            return Html(modelrelay_web::templates::page_shell(
-                "Sign Up",
-                "/signup",
-                &signup_form_html(
-                    Some("Could not create account. Please try again."),
-                    &csrf_field,
-                ),
-                false,
-            ))
-            .into_response();
-        }
-    };
-
-    // Auto-promote admin users
-    if state.admin_emails.contains(&email) {
-        if let Err(e) = sqlx::query("UPDATE users SET is_admin = true WHERE id = $1")
-            .bind(user_id)
-            .execute(pool)
-            .await
-        {
-            tracing::error!("admin auto-promote error: {e}");
-        } else {
-            tracing::info!(email = %email, "auto-promoted new signup to admin");
-        }
-    }
-
-    // Set session
-    if let Err(e) = session.insert("user_id", user_id.to_string()).await {
-        tracing::error!("session insert error: {e}");
-    }
-
-    Redirect::to("/dashboard").into_response()
 }
 
 /// GET /login — render the login form.
@@ -297,6 +142,7 @@ pub async fn logout(session: Session) -> Response {
     Redirect::to("/").into_response()
 }
 
+#[cfg(test)]
 fn hash_password(password: &str) -> Result<String, String> {
     let salt = SaltString::generate(&mut OsRng);
     let argon2 = Argon2::default();
@@ -313,59 +159,6 @@ fn verify_password(password: &str, hash: &str) -> bool {
     Argon2::default()
         .verify_password(password.as_bytes(), &parsed)
         .is_ok()
-}
-
-fn signup_form_html(error: Option<&str>, csrf_field: &str) -> String {
-    let error_html = error
-        .map(|e| format!("<div class=\"error-msg\">{e}</div>"))
-        .unwrap_or_default();
-
-    format!(
-        r#"<div class="auth-split">
-  <div class="auth-value">
-    <h1 class="auth-value-headline">Run any AI model.<br>One unified API.</h1>
-    <p class="auth-value-sub">ModelRelay routes your inference requests to the fastest available GPU — your own hardware, cloud, or both.</p>
-    <ul class="auth-benefits">
-      <li><svg width="18" height="18" viewBox="0 0 18 18" fill="none"><circle cx="9" cy="9" r="9" fill='#7c3aed' opacity="0.15"/><path d="M5.5 9.5l2 2 5-5" stroke='#a78bfa' stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>OpenAI-compatible — drop-in replacement</li>
-      <li><svg width="18" height="18" viewBox="0 0 18 18" fill="none"><circle cx="9" cy="9" r="9" fill='#7c3aed' opacity="0.15"/><path d="M5.5 9.5l2 2 5-5" stroke='#a78bfa' stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Connect your own GPUs or use cloud workers</li>
-      <li><svg width="18" height="18" viewBox="0 0 18 18" fill="none"><circle cx="9" cy="9" r="9" fill='#7c3aed' opacity="0.15"/><path d="M5.5 9.5l2 2 5-5" stroke='#a78bfa' stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Automatic load balancing and failover</li>
-    </ul>
-    <p class="auth-trust">Trusted by developers running production AI workloads.</p>
-  </div>
-  <div class="auth-form-panel">
-    <div class="auth-form-inner">
-      <h2>Create your account</h2>
-      <p class="auth-form-hint">Start routing AI requests in minutes.</p>
-      {error_html}
-      <form method="POST" action="/signup" class="auth-form" id="signup-form">
-        {csrf_field}
-        <div class="form-group">
-          <label for="email">Email</label>
-          <input type="email" id="email" name="email" required placeholder="you@example.com" autofocus>
-        </div>
-        <div class="form-group">
-          <label for="password">Password</label>
-          <div class="password-wrapper">
-            <input type="password" id="password" name="password" required minlength="8" placeholder="At least 8 characters">
-            <button type="button" class="password-toggle" aria-label="Show password" onclick="togglePassword(this)">
-              <svg class="eye-open" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke='#8b949e' stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-              <svg class="eye-closed" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke='#8b949e' stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-            </button>
-          </div>
-        </div>
-        <button type="submit" class="btn auth-submit">Create Account</button>
-      </form>
-      <p class="auth-legal" style="margin-top:12px;font-size:0.78rem;color:#8b949e;text-align:center;">By creating an account, you agree to our <a href="/terms">Terms of Service</a> and <a href="/privacy">Privacy Policy</a>.</p>
-      <p class="auth-no-cc">No credit card required</p>
-      <p class="auth-switch">Already have an account? <a href="/login">Log in</a></p>
-    </div>
-  </div>
-</div>
-<script>
-function togglePassword(btn){{var i=btn.parentElement.querySelector('input');var o=btn.querySelector('.eye-open');var c=btn.querySelector('.eye-closed');if(i.type==='password'){{i.type='text';o.style.display='none';c.style.display='';btn.setAttribute('aria-label','Hide password')}}else{{i.type='password';o.style.display='';c.style.display='none';btn.setAttribute('aria-label','Show password')}}}}
-document.querySelectorAll('.auth-form').forEach(function(f){{f.addEventListener('submit',function(){{var b=f.querySelector('.auth-submit');if(b){{b.disabled=true;b.classList.add('loading');b.innerHTML='<span class="spinner"></span>'+b.textContent}}}});}});
-</script>"#
-    )
 }
 
 fn login_form_html(error: Option<&str>, csrf_field: &str) -> String {
@@ -406,7 +199,7 @@ fn login_form_html(error: Option<&str>, csrf_field: &str) -> String {
         </div>
         <button type="submit" class="btn auth-submit">Log In</button>
       </form>
-      <p class="auth-switch">Don't have an account? <a href="/signup">Sign up free</a></p>
+      <p class="auth-switch">New signups are currently closed.</p>
     </div>
   </div>
 </div>

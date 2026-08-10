@@ -14,7 +14,7 @@ use tokio::{
 };
 use tokio_tungstenite::{
     connect_async,
-    tungstenite::{Message, Bytes, client::IntoClientRequest},
+    tungstenite::{Bytes, Message, client::IntoClientRequest},
 };
 
 /// How long the worker waits without receiving any message from the server

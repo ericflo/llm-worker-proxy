@@ -121,13 +121,12 @@ async fn pricing_returns_503_without_session_layer() {
 // ─── Auth pages ────────────────────────────────────────────────────────────
 
 #[tokio::test]
-async fn signup_page_returns_503_without_session_layer() {
+async fn signup_page_is_closed_without_session_layer() {
     let (status, body) = get("/signup").await;
-    // Without a session layer the session guard middleware returns a styled 503.
-    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(status, StatusCode::GONE);
     assert!(
-        body.contains("Service Temporarily Unavailable"),
-        "expected styled 503 page"
+        body.contains("Signups Closed"),
+        "expected closed-signup page"
     );
 }
 
@@ -144,18 +143,17 @@ async fn login_page_returns_503_without_session_layer() {
 // ─── POST /signup without DB returns error ─────────────────────────────────
 
 #[tokio::test]
-async fn signup_submit_without_session_returns_503() {
+async fn signup_submit_without_session_is_closed() {
     let (status, body) = post(
         "/signup",
         "application/x-www-form-urlencoded",
         "email=test%40example.com&password=longpassword123",
     )
     .await;
-    // Without session layer the session guard middleware returns 503.
-    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(status, StatusCode::GONE);
     assert!(
-        body.contains("Service Temporarily Unavailable"),
-        "expected styled 503 page"
+        body.contains("Signups Closed"),
+        "expected closed-signup page"
     );
 }
 
@@ -253,16 +251,7 @@ async fn sitemap_xml_returns_200_with_correct_content() {
         body.contains("http://www.sitemaps.org/schemas/sitemap/0.9"),
         "missing sitemap namespace"
     );
-    for path in &[
-        "/",
-        "/pricing",
-        "/signup",
-        "/login",
-        "/setup",
-        "/integrate",
-        "/terms",
-        "/privacy",
-    ] {
+    for path in &["/", "/login", "/setup", "/integrate", "/terms", "/privacy"] {
         assert!(
             body.contains(&format!("https://modelrelay.io{path}")),
             "missing URL for {path}"
@@ -327,20 +316,13 @@ async fn sitemap_xml_includes_legal_pages() {
 }
 
 #[tokio::test]
-async fn signup_form_links_to_legal_pages() {
+async fn signup_is_closed_even_with_session() {
     let (status, body) = get_with_session("/signup").await;
-    assert_eq!(status, StatusCode::OK, "/signup should render with session");
+    assert_eq!(status, StatusCode::GONE, "/signup should remain closed");
+    assert!(body.contains("Signups Closed"));
     assert!(
-        body.contains("By creating an account"),
-        "/signup should display the legal acceptance line"
-    );
-    assert!(
-        body.contains(r#"href="/terms""#),
-        "/signup should link to /terms"
-    );
-    assert!(
-        body.contains(r#"href="/privacy""#),
-        "/signup should link to /privacy"
+        !body.contains("<form"),
+        "closed signup must not render a form"
     );
 }
 
@@ -662,7 +644,7 @@ async fn login_page_has_per_page_og_url_and_canonical() {
 #[tokio::test]
 async fn signup_page_has_per_page_og_url_and_canonical() {
     let (status, body) = get_with_session("/signup").await;
-    assert_eq!(status, StatusCode::OK, "/signup should render with session");
+    assert_eq!(status, StatusCode::GONE, "/signup should remain closed");
     assert!(
         body.contains(r#"<meta property="og:url" content="https://modelrelay.io/signup""#),
         "/signup should have og:url pointing at /signup"
