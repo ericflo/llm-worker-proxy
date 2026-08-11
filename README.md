@@ -120,6 +120,8 @@ A hosted release is complete only after both signed Epsilon image promotions
 reconcile and `https://api.modelrelay.io/health` plus
 `https://modelrelay.io/health` return HTTP 200. Roll back by reverting the exact
 digests in Epsilon; never retag an image or deploy from here.
+If CI fails, no release tags are published and both current production digests
+are left untouched.
 
 ## Quickstart
 
