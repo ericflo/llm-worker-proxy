@@ -116,6 +116,11 @@ no cluster credential. GitHub-hosted release workflows remain optional
 distribution tooling for downloadable binaries and do not deploy the hosted
 service.
 
+A hosted release is complete only after both signed Epsilon image promotions
+reconcile and `https://api.modelrelay.io/health` plus
+`https://modelrelay.io/health` return HTTP 200. Roll back by reverting the exact
+digests in Epsilon; never retag an image or deploy from here.
+
 ## Quickstart
 
 ### Pre-built binaries (recommended)
