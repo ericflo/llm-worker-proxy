@@ -1,0 +1,161 @@
+
+    .wizard-progress {
+      display:flex; gap:0; margin-bottom:32px; overflow-x:auto;
+      -webkit-overflow-scrolling:touch;
+    }
+    .wizard-progress .step-indicator {
+      flex:1; text-align:center; padding:12px 8px; font-size:0.75rem;
+      color:#484f58; border-bottom:2px solid #21262d; min-width:80px;
+      transition: color 0.3s, border-color 0.3s; cursor:pointer; user-select:none;
+    }
+    .wizard-progress .step-indicator:hover {
+      color:#c9d1d9;
+    }
+    .wizard-progress .step-indicator.active {
+      color:#7c3aed; border-bottom-color:#7c3aed; font-weight:600;
+    }
+    .wizard-progress .step-indicator.done {
+      color:#34d399; border-bottom-color:#34d399;
+    }
+    .wizard-progress .step-indicator.done::after {
+      content:' \2713'; font-size:0.7rem; font-weight:700;
+    }
+
+    .wizard-step { display:none; animation:fadeIn 0.3s ease; }
+    .wizard-step.active { display:block; }
+
+    .wizard-card {
+      background:#161b22; border:1px solid #21262d; border-radius:12px;
+      padding:32px; margin-bottom:24px;
+    }
+    .wizard-card h2 { font-size:1.2rem; margin-bottom:12px; color:#e6edf3; }
+    .wizard-card p { color:#8b949e; margin-bottom:12px; line-height:1.7; }
+
+    .platform-tabs {
+      display:flex; gap:8px; margin-bottom:20px; flex-wrap:wrap;
+    }
+    .platform-tabs .tab {
+      padding:10px 20px; background:#0d1117; border:1px solid #30363d;
+      border-radius:8px; color:#8b949e; cursor:pointer; font-size:0.9rem;
+      font-weight:600; transition: all 0.2s;
+    }
+    .platform-tabs .tab:hover { border-color:#7c3aed; color:#e6edf3; }
+    .platform-tabs .tab.active { background:#7c3aed; border-color:#7c3aed; color:#fff; }
+
+    .platform-content { display:none; }
+    .platform-content.active { display:block; }
+
+    .backend-content { display:none; }
+    .backend-content.active { display:block; }
+
+    .hint-box {
+      background:#1c1f26; border:1px solid #30363d; border-radius:8px;
+      padding:16px; margin:12px 0; font-size:0.85rem; color:#8b949e; line-height:1.7;
+    }
+    .hint-box strong { color:#e6edf3; }
+
+    .skip-link {
+      display:none; margin-top:8px; color:#7c3aed; cursor:pointer;
+      font-size:0.85rem; background:none; border:none; font-family:inherit;
+    }
+    .skip-link:hover { text-decoration:underline; }
+
+    .code-block {
+      background:#0d1117; border:1px solid #30363d; border-radius:8px;
+      padding:16px; font-family:'SFMono-Regular',Consolas,monospace;
+      font-size:0.85rem; color:#e6edf3; overflow-x:auto; position:relative;
+      line-height:1.6; margin:12px 0;
+    }
+    .code-block .copy-btn {
+      position:absolute; top:8px; right:8px; padding:4px 10px;
+      font-size:0.75rem; background:#21262d; color:#8b949e;
+      border:1px solid #30363d; border-radius:6px; cursor:pointer;
+      transition: all 0.2s;
+    }
+    .code-block .copy-btn:hover { background:#30363d; color:#e6edf3; border-color:#484f58; }
+
+    .wizard-nav {
+      display:flex; justify-content:space-between; align-items:center;
+      margin-top:24px; padding-top:24px; border-top:1px solid #21262d;
+    }
+    .wizard-nav .btn { min-width:120px; text-align:center; }
+    .wizard-nav .btn-back {
+      background:transparent; border:1px solid #30363d; color:#8b949e;
+      transition: all 0.2s;
+    }
+    .wizard-nav .btn-back:hover { border-color:#7c3aed; color:#e6edf3; }
+
+    .status-indicator {
+      display:flex; align-items:center; gap:10px; padding:16px;
+      background:#0d1117; border:1px solid #21262d; border-radius:8px;
+      margin:16px 0; font-size:0.95rem;
+    }
+    .status-indicator .pulse {
+      width:12px; height:12px; border-radius:50%; background:#484f58; flex-shrink:0;
+    }
+    .status-indicator .pulse.searching {
+      background:#fbbf24;
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+    .status-indicator .pulse.connected { background:#34d399; }
+    @keyframes pulse {
+      0%,100% { opacity:1; }
+      50% { opacity:0.4; }
+    }
+
+    .check-mark { color:#34d399; font-weight:700; margin-right:4px; }
+    .step-num {
+      display:inline-flex; align-items:center; justify-content:center;
+      width:28px; height:28px; border-radius:50%; background:#7c3aed;
+      color:#fff; font-size:0.8rem; font-weight:700; margin-right:10px;
+      flex-shrink:0;
+    }
+
+    .test-result {
+      background:#0d1117; border:1px solid #21262d; border-radius:8px;
+      padding:16px; margin-top:16px; font-family:'SFMono-Regular',Consolas,monospace;
+      font-size:0.85rem; color:#e6edf3; max-height:300px; overflow-y:auto;
+      white-space:pre-wrap;
+    }
+
+    .config-input {
+      display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin:12px 0;
+    }
+    .config-input label { color:#8b949e; font-size:0.85rem; min-width:120px; }
+    .config-input input {
+      padding:10px 14px; background:#0d1117; border:1px solid #30363d;
+      border-radius:8px; color:#e6edf3; font-size:0.9rem; flex:1; min-width:200px;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .config-input input:focus { outline:none; border-color:#7c3aed; box-shadow:0 0 0 3px rgba(124,58,237,0.15); }
+
+    details summary { list-style:none; }
+    details summary::-webkit-details-marker { display:none; }
+
+    @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+
+    /* Wizard tablet */
+    @media (max-width: 768px) {
+      .wizard-card { padding:24px; }
+      .wizard-card h2 { font-size:1.1rem; }
+      .platform-tabs .tab { padding:8px 14px; font-size:0.85rem; }
+      .config-input { flex-direction:column; align-items:stretch; }
+      .config-input label { min-width:auto; }
+      .config-input input { min-width:auto; }
+    }
+
+    /* Wizard mobile */
+    @media (max-width: 480px) {
+      .wizard-progress { margin-bottom:24px; }
+      .wizard-progress .step-indicator { min-width:60px; padding:10px 4px; font-size:0.65rem; }
+      .wizard-card { padding:20px; }
+      .wizard-nav { flex-direction:column; gap:12px; }
+      .wizard-nav .btn { width:100%; min-width:auto; }
+      .wizard-nav .btn-back { order:1; }
+      .platform-tabs .tab { flex:1; min-width:70px; padding:8px 10px; font-size:0.8rem; text-align:center; }
+      .code-block { padding:12px; font-size:0.8rem; }
+      .code-block .copy-btn { position:static; display:block; margin:0 0 8px auto; }
+      .hint-box { padding:12px; font-size:0.8rem; }
+      .status-indicator { padding:12px; font-size:0.85rem; }
+    }
+    

@@ -1,0 +1,105 @@
+{
+  "version": "1.0.0",
+  "last_verified": "2025-08-10",
+  "categories": [
+    {
+      "id": "clients",
+      "name": "Clients",
+      "items": [
+        {
+          "id": "curl",
+          "name": "cURL"
+        },
+        {
+          "id": "python-openai",
+          "name": "Python OpenAI SDK"
+        },
+        {
+          "id": "node-openai",
+          "name": "Node.js OpenAI SDK"
+        },
+        {
+          "id": "go-openai",
+          "name": "Go OpenAI SDK"
+        }
+      ]
+    },
+    {
+      "id": "agents",
+      "name": "Agents & Tools",
+      "items": [
+        {
+          "id": "pi",
+          "name": "Pi"
+        },
+        {
+          "id": "codex",
+          "name": "Codex"
+        },
+        {
+          "id": "aider",
+          "name": "Aider"
+        },
+        {
+          "id": "continue",
+          "name": "Continue.dev"
+        }
+      ]
+    },
+    {
+      "id": "apis",
+      "name": "API Dialects",
+      "items": [
+        {
+          "id": "openai-chat",
+          "name": "OpenAI Chat Completions"
+        },
+        {
+          "id": "anthropic-messages",
+          "name": "Anthropic Messages"
+        },
+        {
+          "id": "openai-responses",
+          "name": "OpenAI Responses"
+        }
+      ]
+    }
+  ],
+  "variables": [
+    "SERVER_URL",
+    "API_KEY",
+    "MODEL_NAME"
+  ],
+  "snippets": {
+    "curl": {
+      "name": "cURL",
+      "description": "Quick test with curl",
+      "template": "curl {{SERVER_URL}}/v1/chat/completions -H \"Content-Type: application/json\" -H \"Authorization: Bearer {{API_KEY}}\" -d '{{\"model\":\"{{MODEL_NAME}}\",\"messages\":[{{\"role\":\"user\",\"content\":\"Hello!\"}}]}}'",
+      "verified": true
+    },
+    "python-openai": {
+      "name": "Python OpenAI SDK",
+      "description": "Use OpenAI SDK with ModelRelay",
+      "template": "from openai import OpenAI\nclient = OpenAI(base_url=\"{{SERVER_URL}}/v1\", api_key=\"{{API_KEY}}\")\nresp = client.chat.completions.create(model=\"{{MODEL_NAME}}\", messages=[{\"role\":\"user\",\"content\":\"Hello!\"}])",
+      "verified": true
+    },
+    "node-openai": {
+      "name": "Node.js OpenAI SDK",
+      "description": "Use OpenAI SDK in Node",
+      "template": "import OpenAI from 'openai';\nconst client = new OpenAI({ baseURL: '{{SERVER_URL}}/v1', apiKey: '{{API_KEY}}' });\nconst resp = await client.chat.completions.create({ model: '{{MODEL_NAME}}', messages: [{role:'user',content:'Hello!'}] });",
+      "verified": true
+    },
+    "openai-chat": {
+      "name": "OpenAI Chat Completions",
+      "description": "Standard OpenAI compatible endpoint",
+      "template": "POST {{SERVER_URL}}/v1/chat/completions\nHeaders: Authorization: Bearer {{API_KEY}}\nBody: {\"model\":\"{{MODEL_NAME}}\",\"messages\":[{\"role\":\"user\",\"content\":\"Hello!\"}]}",
+      "verified": true
+    },
+    "anthropic-messages": {
+      "name": "Anthropic Messages",
+      "description": "Anthropic compatible endpoint",
+      "template": "POST {{SERVER_URL}}/v1/messages\nHeaders: x-api-key: {{API_KEY}}, anthropic-version: 2023-06-01\nBody: {\"model\":\"{{MODEL_NAME}}\",\"max_tokens\":1024,\"messages\":[{\"role\":\"user\",\"content\":\"Hello!\"}]}",
+      "verified": true
+    }
+  }
+}

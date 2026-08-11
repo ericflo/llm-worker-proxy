@@ -2,6 +2,7 @@ use axum::response::Html;
 use axum::routing::get;
 use axum::{Json, Router};
 use serde_json::{Value, json};
+use tower_http::services::ServeDir;
 
 /// Build the OSS admin dashboard router.
 ///
@@ -15,6 +16,7 @@ pub fn router() -> Router {
         .route("/dashboard", get(dashboard))
         .route("/setup", get(setup))
         .route("/integrate", get(integrate))
+        .nest_service("/static", ServeDir::new("crates/modelrelay-web/static"))
 }
 
 async fn landing() -> Html<String> {
