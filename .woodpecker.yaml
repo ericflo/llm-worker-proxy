@@ -1,10 +1,51 @@
 steps:
-  - name: test-deployed-services
+  - name: fetch-audit-tools
+    image: docker.io/library/busybox:1.37.0-musl@sha256:fc6dddc4c44b1bfe37f41cae8e67d1693828e8f42a91862816d7953e2c9d3f23
+    commands:
+      - |-
+        set -eu
+        mkdir -p .ci-tools
+
+        wget -q -O /tmp/cargo-audit.tgz \
+          https://github.com/rustsec/rustsec/releases/download/cargo-audit/v0.22.2/cargo-audit-x86_64-unknown-linux-musl-v0.22.2.tgz
+        printf '%s  %s\n' \
+          7fb9497f8594b389e5fce5ef9b92db08432996895b2e0c5a0167a69ed445c428 \
+          /tmp/cargo-audit.tgz | sha256sum -c -
+        tar -xzf /tmp/cargo-audit.tgz -C .ci-tools --strip-components=1 \
+          cargo-audit-x86_64-unknown-linux-musl-v0.22.2/cargo-audit
+
+        wget -q -O /tmp/cargo-deny.tgz \
+          https://github.com/EmbarkStudios/cargo-deny/releases/download/0.20.2/cargo-deny-0.20.2-x86_64-unknown-linux-musl.tar.gz
+        printf '%s  %s\n' \
+          9f12ed4c49936e09b48bf862b595cde2fe64fcbd9d74dfacac6131ca824c8d5f \
+          /tmp/cargo-deny.tgz | sha256sum -c -
+        tar -xzf /tmp/cargo-deny.tgz -C .ci-tools --strip-components=1 \
+          cargo-deny-0.20.2-x86_64-unknown-linux-musl/cargo-deny
+    backend_options:
+      kubernetes:
+        resources:
+          requests: {cpu: 10m, memory: 16Mi}
+          limits: {cpu: 100m, memory: 64Mi}
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+          fsGroup: 1000
+          fsGroupChangePolicy: OnRootMismatch
+          seccompProfile: {type: RuntimeDefault}
+          allowPrivilegeEscalation: false
+          capabilities: {drop: [ALL]}
+
+  - name: quality
     image: docker.io/library/rust:1.94.1-slim@sha256:cf09adf8c3ebaba10779e5c23ff7fe4df4cccdab8a91f199b0c142c53fef3e1a
+    depends_on: [fetch-audit-tools]
     commands:
       - export CARGO_HOME=/tmp/cargo CARGO_TARGET_DIR=/tmp/target CARGO_INCREMENTAL=0 CARGO_PROFILE_TEST_DEBUG=0 RUSTUP_HOME=/usr/local/rustup
       - cargo fmt --check
-      - cargo test --locked -p modelrelay-server -p modelrelay-cloud
+      - cargo clippy --locked --workspace --exclude modelrelay-desktop --all-targets --all-features -- -D warnings
+      - cargo test --locked --workspace --exclude modelrelay-desktop
+      - .ci-tools/cargo-audit
+      - .ci-tools/cargo-deny --all-features --locked check licenses bans sources
     backend_options:
       kubernetes:
         resources:
@@ -22,7 +63,7 @@ steps:
 
   - name: publish-immutable-images
     image: docker.io/moby/buildkit:v0.30.0-rootless@sha256:d76eb1caecac5733ef7553c1e90a1b21f1bb218cd1142d3553de0747b4a14ba9
-    depends_on: [test-deployed-services]
+    depends_on: [quality]
     when:
       - evaluate: 'CI_PIPELINE_EVENT == "push" && CI_COMMIT_BRANCH == CI_REPO_DEFAULT_BRANCH'
     commands:
@@ -69,4 +110,5 @@ steps:
           capabilities: {drop: [ALL]}
 
 when:
-  - evaluate: 'CI_PIPELINE_EVENT == "push" && CI_COMMIT_BRANCH == CI_REPO_DEFAULT_BRANCH'
+  - event: push
+    evaluate: 'CI_COMMIT_BRANCH == CI_REPO_DEFAULT_BRANCH'

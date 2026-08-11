@@ -205,6 +205,11 @@ mod postgres_store {
         ///
         /// The operation is idempotent. A previously revoked matching key is
         /// never resurrected.
+        ///
+        /// # Errors
+        ///
+        /// Returns [`StoreError::BadKey`] when `raw_key` is malformed and a
+        /// storage error when the import cannot be read or committed.
         pub async fn ensure_imported_key(
             &self,
             name: &str,

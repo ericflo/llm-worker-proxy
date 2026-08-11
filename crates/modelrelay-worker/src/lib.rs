@@ -131,6 +131,17 @@ impl WorkerDaemon {
         }
     }
 
+    fn registration_message(&self) -> WorkerToServerMessage {
+        WorkerToServerMessage::Register(RegisterMessage {
+            worker_name: self.config.worker_name.clone(),
+            models: self.config.models.clone(),
+            max_concurrent: self.config.max_concurrent,
+            protocol_version: Some("2026-04-bridge-v1".to_string()),
+            current_load: Some(0),
+            endpoint_prefixes: self.config.endpoint_prefixes.clone(),
+        })
+    }
+
     /// Runs one connection session.
     ///
     /// Returns `Ok(true)` when the proxy sent a `GracefulShutdown` before closing
@@ -161,18 +172,7 @@ impl WorkerDaemon {
         ping_ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
         ping_ticker.tick().await; // consume the immediate first tick
 
-        send_worker_message(
-            &mut socket_write,
-            &WorkerToServerMessage::Register(RegisterMessage {
-                worker_name: self.config.worker_name.clone(),
-                models: self.config.models.clone(),
-                max_concurrent: self.config.max_concurrent,
-                protocol_version: Some("2026-04-bridge-v1".to_string()),
-                current_load: Some(0),
-                endpoint_prefixes: self.config.endpoint_prefixes.clone(),
-            }),
-        )
-        .await?;
+        send_worker_message(&mut socket_write, &self.registration_message()).await?;
 
         tracing::info!(
             url = %self.config.websocket_url(),

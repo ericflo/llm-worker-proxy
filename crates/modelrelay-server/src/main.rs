@@ -62,7 +62,7 @@ struct Args {
     #[arg(long, env = "DATABASE_URL")]
     database_url: Option<String>,
 
-    /// Existing native API key to hash-import into a rebuilt PostgreSQL store.
+    /// Existing native API key to hash-import into a rebuilt `PostgreSQL` store.
     /// The raw key is never persisted. A matching revoked key fails startup.
     #[arg(long, env = "MODELRELAY_BOOTSTRAP_API_KEY")]
     bootstrap_api_key: Option<String>,
@@ -165,16 +165,8 @@ async fn main() {
         .await
         .unwrap_or_else(|e| panic!("Failed to bind to {}: {e}", args.listen));
 
-    let queue_timeout_display = if args.queue_timeout == 0 {
-        "none".to_string()
-    } else {
-        format!("{}s", args.queue_timeout)
-    };
-    let request_timeout_display = if args.request_timeout == 0 {
-        "none".to_string()
-    } else {
-        format!("{}s", args.request_timeout)
-    };
+    let queue_timeout_display = display_timeout(args.queue_timeout);
+    let request_timeout_display = display_timeout(args.request_timeout);
     let max_queue_display = if args.max_queue_len == 0 {
         "unlimited".to_string()
     } else {
@@ -193,6 +185,14 @@ async fn main() {
         .with_graceful_shutdown(shutdown_signal())
         .await
         .expect("server error");
+}
+
+fn display_timeout(seconds: u64) -> String {
+    if seconds == 0 {
+        "none".to_string()
+    } else {
+        format!("{seconds}s")
+    }
 }
 
 async fn build_api_key_store(
