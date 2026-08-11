@@ -106,6 +106,14 @@ The desktop app uses the same `modelrelay-worker` library under the hood, so it 
 
 Don't want to run the infrastructure yourself? A fully-managed hosted version is available at [modelrelay.io](https://modelrelay.io) — no server setup, no infrastructure to manage. Just get an API key, point your workers at it, and start routing requests. Same open protocol, zero ops burden.
 
+The hosted service's delivery path is repository-owned and cluster-run:
+pushes to `main` test the deployed crates and build `modelrelay-server` plus
+`modelrelay-cloud` through `.woodpecker.yaml`. Epsilon records and rolls out
+only successful immutable image digests. Kubernetes manifests and runtime
+secrets live exclusively in Epsilon; this repository has no cluster
+credential. GitHub-hosted release workflows remain optional distribution
+tooling for downloadable binaries and do not deploy the hosted service.
+
 ## Quickstart
 
 ### Pre-built binaries (recommended)
