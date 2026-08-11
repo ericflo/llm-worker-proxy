@@ -9,9 +9,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/ericflo/modelrelay/actions/workflows/ci.yml"><img src="https://github.com/ericflo/modelrelay/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://ci.eflorenzano.com"><img src="https://ci.eflorenzano.com/api/badges/ericflo/modelrelay/status.svg" alt="Woodpecker CI"></a>
   <a href="https://github.com/ericflo/modelrelay/releases/latest"><img src="https://img.shields.io/github/v/release/ericflo/modelrelay" alt="Latest Release"></a>
-  <a href="https://codecov.io/gh/ericflo/modelrelay"><img src="https://codecov.io/gh/ericflo/modelrelay/branch/main/graph/badge.svg" alt="Coverage"></a>
   <a href="https://crates.io/crates/modelrelay-protocol"><img src="https://img.shields.io/crates/v/modelrelay-protocol" alt="crates.io"></a>
   <a href="rust-toolchain.toml"><img src="https://img.shields.io/badge/rustc-1.94+-orange.svg" alt="Minimum Rust Version"></a>
   <a href="https://ericflo.github.io/modelrelay/"><img src="https://img.shields.io/badge/docs-GitHub%20Pages-blue" alt="Documentation"></a>
@@ -107,21 +106,22 @@ The desktop app uses the same `modelrelay-worker` library under the hood, so it 
 Don't want to run the infrastructure yourself? A fully-managed hosted version is available at [modelrelay.io](https://modelrelay.io) — no server setup, no infrastructure to manage. Just get an API key, point your workers at it, and start routing requests. Same open protocol, zero ops burden.
 
 The hosted service's delivery path is repository-owned and cluster-run: a push
-to `main` tests the deployed crates and builds `modelrelay-server` plus
+to `main` enforces formatting, strict Clippy, every non-desktop workspace test,
+RustSec audit, and cargo-deny policy before building `modelrelay-server` plus
 `modelrelay-cloud` through `.woodpecker.yaml`. Other branches and pull requests
 are tested locally and do not execute inside the production cluster. Epsilon
 records and rolls out only successful immutable image digests. Kubernetes
 manifests and runtime secrets live exclusively in Epsilon; this repository has
-no cluster credential. GitHub-hosted release workflows remain optional
-distribution tooling for downloadable binaries and do not deploy the hosted
-service.
+no cluster credential. GitHub-hosted workflows are retained only for Pages and
+tagged public/cross-platform distribution; they do not deploy or gate the
+hosted service.
 
 A hosted release is complete only after both signed Epsilon image promotions
 reconcile and `https://api.modelrelay.io/health` plus
 `https://modelrelay.io/health` return HTTP 200. Roll back by reverting the exact
 digests in Epsilon; never retag an image or deploy from here.
-If CI fails, no release tags are published and both current production digests
-are left untouched.
+If the Woodpecker quality gate fails, no internal image tags are published and
+both current production digests are left untouched.
 
 ## Quickstart
 
@@ -158,7 +158,7 @@ Pre-built binaries are the fastest way to get started. Download the latest relea
 
 ### Docker
 
-Pre-built images are published to GitHub Container Registry on every release and main push.
+Pre-built public images are published to GitHub Container Registry for versioned releases.
 
 ```bash
 # Pull the latest images

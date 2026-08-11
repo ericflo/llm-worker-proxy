@@ -80,9 +80,13 @@ Individual tests can be filtered with `-- <pattern>`:
 cargo +1.94.1 test --package modelrelay-contract-tests -- streaming
 ```
 
-## CI secrets
+## Release secrets
 
-The GitHub Actions workflows use two optional secrets. Without them the corresponding CI steps are silently skipped.
+Normal CI runs on Epsilon's Woodpecker installation and needs no repository
+secret. GitHub Actions is retained only for tagged public, cross-platform,
+documentation, and desktop distribution. The crates.io release step uses this
+optional secret; desktop signing and notarization secrets are documented in
+`docs/auto-updates.md`.
 
 ### `CRATES_IO_TOKEN`
 
@@ -93,16 +97,6 @@ Setup:
 2. Go to **Account Settings → API Tokens**.
 3. Create a token with the `publish-new` and `publish-update` scopes.
 4. Add it as a GitHub repository secret named `CRATES_IO_TOKEN`.
-
-### `CODECOV_TOKEN`
-
-Upload token from [codecov.io](https://codecov.io). Required for CI code-coverage reports.
-
-Setup:
-1. Sign up at [codecov.io](https://codecov.io) with your GitHub account.
-2. Add the `ericflo/modelrelay` repository.
-3. Copy the upload token from the repo settings page.
-4. Add it as a GitHub repository secret named `CODECOV_TOKEN`.
 
 ## License
 
