@@ -100,6 +100,42 @@
       "description": "Anthropic compatible endpoint",
       "template": "POST {{SERVER_URL}}/v1/messages\nHeaders: x-api-key: {{API_KEY}}, anthropic-version: 2023-06-01\nBody: {\"model\":\"{{MODEL_NAME}}\",\"max_tokens\":1024,\"messages\":[{\"role\":\"user\",\"content\":\"Hello!\"}]}",
       "verified": true
+    },
+    "go-openai": {
+      "name": "Go OpenAI SDK",
+      "description": "Use OpenAI Go SDK with ModelRelay",
+      "template": "package main\nimport (\"context\", \"github.com/sashabaranov/go-openai\")\nfunc main() { client := openai.NewClient(\"{{API_KEY}}\")\nclient.BaseURL = \"{{SERVER_URL}}/v1\"\nresp, err := client.CreateChatCompletion(context.Background(), openai.ChatCompletionRequest{ Model: \"{{MODEL_NAME}}\", Messages: []openai.ChatCompletionMessage{ { Role: \"user\", Content: \"Hello!\" } } }) }",
+      "verified": false
+    },
+    "pi": {
+      "name": "Pi",
+      "description": "Configure Pi coding agent to use ModelRelay",
+      "template": "Set ANTHROPIC_BASE_URL={{SERVER_URL}}/v1 in your Pi environment or config file. Use API key {{API_KEY}} for authenticated requests.",
+      "verified": false
+    },
+    "codex": {
+      "name": "Codex",
+      "description": "Configure Codex to use ModelRelay",
+      "template": "Set OPENAI_API_BASE={{SERVER_URL}}/v1 and OPENAI_API_KEY={{API_KEY}} in your Codex config.",
+      "verified": false
+    },
+    "aider": {
+      "name": "Aider",
+      "description": "Configure Aider to use ModelRelay",
+      "template": "export OPENAI_API_BASE={{SERVER_URL}}/v1\nexport OPENAI_API_KEY={{API_KEY}}\naider --model {{MODEL_NAME}}",
+      "verified": false
+    },
+    "continue": {
+      "name": "Continue.dev",
+      "description": "Configure Continue to use ModelRelay",
+      "template": "Add to ~/.continue/config.json:\n{ \"models\": [{ \"title\": \"{{MODEL_NAME}}\", \"provider\": \"openai\", \"model\": \"{{MODEL_NAME}}\", \"apiBase\": \"{{SERVER_URL}}/v1\", \"apiKey\": \"{{API_KEY}}\" }] }",
+      "verified": false
+    },
+    "openai-responses": {
+      "name": "OpenAI Responses API",
+      "description": "OpenAI Responses API compatible endpoint",
+      "template": "POST {{SERVER_URL}}/v1/responses\nHeaders: Authorization: Bearer {{API_KEY}}\nBody: {\"model\":\"{{MODEL_NAME}}\",\"input\":\"Hello!\"}",
+      "verified": false
     }
   }
 }

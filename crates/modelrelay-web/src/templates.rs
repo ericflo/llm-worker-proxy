@@ -76,8 +76,9 @@ pub fn dashboard_page() -> String {
     let dashboard_js = r#"
 (function() {
   const POLL_MS = 4000;
-  let adminToken = localStorage.getItem('mr_admin_token') || '';
-  let serverUrl = localStorage.getItem('mr_server_url') || '';
+  // Use sessionStorage for sensitive values; avoid long-term persistence in browser.
+  let adminToken = sessionStorage.getItem('mr_admin_token') || '';
+  let serverUrl = sessionStorage.getItem('mr_server_url') || '';
 
   const $ = (s) => document.querySelector(s);
   const $$ = (s) => document.querySelectorAll(s);
@@ -121,12 +122,13 @@ pub fn dashboard_page() -> String {
 
     tokenInput.addEventListener('change', () => {
       adminToken = tokenInput.value.trim();
-      localStorage.setItem('mr_admin_token', adminToken);
+      // Store in sessionStorage only; tokens are sensitive
+      sessionStorage.setItem('mr_admin_token', adminToken);
       pollAll();
     });
     urlInput.addEventListener('change', () => {
       serverUrl = urlInput.value.trim().replace(/\/+$/, '');
-      localStorage.setItem('mr_server_url', serverUrl);
+      sessionStorage.setItem('mr_server_url', serverUrl);
       pollAll();
     });
   }
@@ -623,11 +625,13 @@ pub fn setup_wizard_page_with_config(cloud_config: Option<&CloudWizardConfig>) -
 
   function getAdminToken() {
     if (cloudCfg) return '';
-    return localStorage.getItem('mr_admin_token') || '';
+    // Admin token is sensitive; do not persist automatically.
+    // If you need persistence, explicitly enable it in your deployment.
+    return sessionStorage.getItem('mr_admin_token') || '';
   }
   function getServerUrl() {
     if (cloudCfg && cloudCfg.serverUrl) return cloudCfg.serverUrl;
-    return localStorage.getItem('mr_server_url') || window.location.origin;
+    return sessionStorage.getItem('mr_server_url') || window.location.origin;
   }
   function getWorkersPollUrl() {
     if (cloudCfg && cloudCfg.workersPollUrl) return cloudCfg.workersPollUrl;
@@ -722,15 +726,29 @@ pub fn setup_wizard_page_with_config(cloud_config: Option<&CloudWizardConfig>) -
     const serverUrl = $('#cfg-server-url') ? $('#cfg-server-url').value : getServerUrl();
     const secret = $('#cfg-worker-secret') ? $('#cfg-worker-secret').value : 'your-worker-secret';
     const workerName = $('#cfg-worker-name') ? ($('#cfg-worker-name').value || 'my-gpu-box') : 'my-gpu-box';
-    const port = getBackendPort();
+    const backendUrlInput = $('#cfg-backend-url');
+    let backendUrl;
+    if (backendUrlInput && backendUrlInput.value.trim()) {
+      backendUrl = backendUrlInput.value.trim();
+    } else {
+      const port = getBackendPort();
+      backendUrl = 'http://localhost:' + port;
+    }
+    const modelsInput = $('#cfg-models');
+    let modelsValue = '';
+    if (modelsInput && modelsInput.value.trim()) {
+      modelsValue = modelsInput.value.trim();
+    } else {
+      modelsValue = 'default';
+    }
     const el = $('#config-toml');
     if (el) {
       el.textContent =
         'proxy_url = "' + serverUrl + '"\n' +
         'worker_secret = "' + secret + '"\n' +
         'worker_name = "' + workerName + '"\n' +
-        'backend_url = "http://localhost:' + port + '"\n' +
-        'models = ["*"]';
+        'backend_url = "' + backendUrl + '"\n' +
+        'models = ["' + modelsValue + '"]';
     }
     // Also update env var snippet
     const envEl = $('#config-env');
@@ -739,14 +757,14 @@ pub fn setup_wizard_page_with_config(cloud_config: Option<&CloudWizardConfig>) -
         'export PROXY_URL="' + serverUrl + '"\n' +
         'export WORKER_SECRET="' + secret + '"\n' +
         'export WORKER_NAME="' + workerName + '"\n' +
-        'export BACKEND_URL="http://localhost:' + port + '"\n' +
-        'export MODELS="*"';
+        'export BACKEND_URL="' + backendUrl + '"\n' +
+        'export MODELS="' + modelsValue + '"';
     }
     // Update curl test command
     const curlEl = $('#curl-test');
     if (curlEl) {
       const apiKeyInput = $('#test-api-key');
-      const apiKey = (cloudCfg && cloudCfg.apiKey) ? cloudCfg.apiKey : (apiKeyInput ? apiKeyInput.value.trim() : '') || (localStorage.getItem('mr_test_api_key') || '');
+      const apiKey = (cloudCfg && cloudCfg.apiKey) ? cloudCfg.apiKey : (apiKeyInput ? apiKeyInput.value.trim() : '') || (sessionStorage.getItem('mr_test_api_key') || '');
       const testModel = ($('#test-model') && $('#test-model').value.trim()) || 'your-model';
       let curlCmd = 'curl -X POST ' + serverUrl + '/v1/chat/completions \\\n' +
         '  -H "Content-Type: application/json" \\\n';
@@ -850,8 +868,9 @@ pub fn setup_wizard_page_with_config(cloud_config: Option<&CloudWizardConfig>) -
       const apiKeyInput = $('#test-api-key');
       let apiKey = (cloudCfg && cloudCfg.apiKey) ? cloudCfg.apiKey : '';
       if (!apiKey && apiKeyInput) apiKey = apiKeyInput.value.trim();
-      if (!apiKey) apiKey = localStorage.getItem('mr_test_api_key') || '';
-      if (apiKey && apiKeyInput) localStorage.setItem('mr_test_api_key', apiKey);
+      // Use sessionStorage for API key to avoid long-term persistence
+      if (!apiKey) apiKey = sessionStorage.getItem('mr_test_api_key') || '';
+      if (apiKey && apiKeyInput) sessionStorage.setItem('mr_test_api_key', apiKey);
       const headers = { 'Content-Type': 'application/json' };
       if (apiKey) headers['Authorization'] = 'Bearer ' + apiKey;
       const r = await fetch(serverUrl + '/v1/chat/completions', {
@@ -904,13 +923,14 @@ pub fn setup_wizard_page_with_config(cloud_config: Option<&CloudWizardConfig>) -
   } else {
     const urlInput = $('#cfg-server-url');
     if (urlInput && !urlInput.value) urlInput.value = window.location.origin;
-    const savedApiKey = localStorage.getItem('mr_test_api_key');
+    // Use sessionStorage for API key
+    const savedApiKey = sessionStorage.getItem('mr_test_api_key');
     const apiKeyInput = $('#test-api-key');
     if (apiKeyInput && savedApiKey && !apiKeyInput.value) apiKeyInput.value = savedApiKey;
   }
 
   document.addEventListener('input', (e) => {
-    if (e.target.id === 'cfg-server-url' || e.target.id === 'cfg-worker-secret' || e.target.id === 'cfg-worker-name' || e.target.id === 'test-api-key' || e.target.id === 'test-model') {
+    if (e.target.id === 'cfg-server-url' || e.target.id === 'cfg-worker-secret' || e.target.id === 'cfg-worker-name' || e.target.id === 'cfg-backend-url' || e.target.id === 'cfg-models' || e.target.id === 'test-api-key' || e.target.id === 'test-model') {
       updateConfigSnippet();
     }
   });
@@ -1133,11 +1153,19 @@ curl -L -o model.gguf https://huggingface.co/bartowski/Llama-3.2-3B-Instruct-GGU
         </div>
         <div class="config-input">
           <label for="cfg-worker-secret">Worker Secret:</label>
-          <input id="cfg-worker-secret" type="text" placeholder="your-worker-secret">
+          <input id="cfg-worker-secret" type="password" placeholder="your-worker-secret">
         </div>
         <div class="config-input">
           <label for="cfg-worker-name">Worker Name:</label>
           <input id="cfg-worker-name" type="text" placeholder="my-gpu-box">
+        </div>
+        <div class="config-input">
+          <label for="cfg-backend-url">Backend URL:</label>
+          <input id="cfg-backend-url" type="text" placeholder="http://localhost:1234">
+        </div>
+        <div class="config-input">
+          <label for="cfg-models">Models (comma-separated):</label>
+          <input id="cfg-models" type="text" placeholder="llama3.2:3b,llama3.2:1b">
         </div>
         <div class="code-block">
           <button class="copy-btn" onclick="window.__copyCode('config-toml')">Copy</button>
@@ -1145,12 +1173,12 @@ curl -L -o model.gguf https://huggingface.co/bartowski/Llama-3.2-3B-Instruct-GGU
 worker_secret = "your-worker-secret"
 worker_name = "my-gpu-box"
 backend_url = "http://localhost:1234"
-models = ["*"]</code>
+models = ["default"]</code>
         </div>
         <div class="hint-box">
           <strong>worker_secret</strong> — shared secret that must match the <code>WORKER_SECRET</code> on your ModelRelay server. It authenticates the worker connection.<br>
           <strong>worker_name</strong> — a label for this machine (e.g. "strix-halo-lmstudio", "rtx4090-desktop").<br>
-          <strong>models = ["*"]</strong> — advertises all models from your backend. Replace with specific names to expose a subset.
+          <strong>models</strong> — list of model names to advertise. Leave empty or use "default" to auto-discover from backend.
         </div>
         <details style="margin-top:12px;">
           <summary style="color:#7c3aed;cursor:pointer;font-size:0.9rem;font-weight:600;">Prefer environment variables?</summary>
@@ -1160,7 +1188,7 @@ models = ["*"]</code>
 export WORKER_SECRET="your-worker-secret"
 export WORKER_NAME="my-gpu-box"
 export BACKEND_URL="http://localhost:1234"
-export MODELS="*"</code>
+export MODELS="default"</code>
           </div>
           <p style="color:#8b949e;font-size:0.85rem;margin-top:4px;">CLI flags also work: <code>--proxy-url</code>, <code>--worker-secret</code>, <code>--backend-url</code>, <code>--models</code>.</p>
         </details>
@@ -1197,7 +1225,8 @@ export MODELS="*"</code>
         <button id="skip-detect" class="skip-link" onclick="window.__wizNext();">Skip detection &rarr; (worker may be on a different network)</button>
 
         <p style="color:#8b949e;font-size:0.85rem;margin-top:12px;">
-          Admin token must be set on the <a href="/dashboard">dashboard</a> for live detection. Polling every 3 seconds.
+          <strong>Self-hosted:</strong> Admin token must be set on the <a href="/dashboard">dashboard</a> for live detection. Polling every 3 seconds.<br>
+          <strong>Cloud:</strong> Worker detection is handled automatically by ModelRelay Cloud; no admin token required.
         </p>
       </div>
       <div class="wizard-nav">
