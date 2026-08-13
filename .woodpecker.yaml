@@ -95,8 +95,14 @@ steps:
             --export-cache "type=registry,ref=$${cache_ref},mode=max,registry.insecure=true" \
             --output "type=image,name=$${registry}/$${image}:$${image_tag},push=true,registry.insecure=true"
         }
-        build_image Dockerfile modelrelay-server
-        build_image Dockerfile.cloud modelrelay-cloud
+        build_image Dockerfile modelrelay-server &
+        server_pid=$$!
+        build_image Dockerfile.cloud modelrelay-cloud &
+        cloud_pid=$$!
+        build_status=0
+        wait "$${server_pid}" || build_status=1
+        wait "$${cloud_pid}" || build_status=1
+        [ "$${build_status}" -eq 0 ] || exit "$${build_status}"
         printf 'Published modelrelay-server and modelrelay-cloud at immutable tag %s\n' "$${image_tag}"
     backend_options:
       kubernetes:
