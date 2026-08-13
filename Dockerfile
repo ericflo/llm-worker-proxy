@@ -23,6 +23,7 @@ RUN mkdir -p /opt/modelrelay-ci \
 COPY Cargo.toml Cargo.lock rust-toolchain.toml deny.toml ./
 COPY .cargo/ .cargo/
 COPY crates/ crates/
+COPY docs/ docs/
 
 # Quality checks and release compilation share one exact source snapshot and
 # one node-local compiler cache. A failed check prevents /out from existing,
