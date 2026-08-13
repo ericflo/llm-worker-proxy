@@ -82,6 +82,8 @@ steps:
         build_image() {
           dockerfile="$${1}"
           image="$${2}"
+          registry=registry.clouderic.svc.cluster.local:5000
+          cache_ref="$${registry}/$${image}-build-cache:main"
           buildctl --addr "$${buildkit_addr}" build \
             --frontend dockerfile.v0 --local context=. --local dockerfile=. \
             --opt "filename=$${dockerfile}" --opt platform=linux/amd64 \
@@ -89,7 +91,9 @@ steps:
             --opt "label:org.opencontainers.image.revision=$${CI_COMMIT_SHA}" \
             --opt "label:org.opencontainers.image.created=$$(date -u -d "@$${CI_PIPELINE_CREATED}" +%Y-%m-%dT%H:%M:%SZ)" \
             --opt attest:provenance=mode=max \
-            --output "type=image,name=registry.clouderic.svc.cluster.local:5000/$${image}:$${image_tag},push=true,registry.insecure=true"
+            --import-cache "type=registry,ref=$${cache_ref},registry.insecure=true" \
+            --export-cache "type=registry,ref=$${cache_ref},mode=max,registry.insecure=true" \
+            --output "type=image,name=$${registry}/$${image}:$${image_tag},push=true,registry.insecure=true"
         }
         build_image Dockerfile modelrelay-server
         build_image Dockerfile.cloud modelrelay-cloud
