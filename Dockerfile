@@ -37,8 +37,8 @@ RUN --mount=type=cache,id=modelrelay-cargo-registry,target=/usr/local/cargo/regi
       cargo test --locked --workspace --exclude modelrelay-desktop \
     && /opt/modelrelay-ci/cargo-audit audit \
     && /opt/modelrelay-ci/cargo-deny --all-features --locked check licenses bans sources \
-    && cargo build --locked --release --bin modelrelay-server --bin modelrelay-worker \
-    && cargo build --locked --release -p modelrelay-cloud \
+    && cargo build --locked --release \
+      -p modelrelay-server -p modelrelay-worker -p modelrelay-cloud \
     && install -d /out \
     && install -m 0755 target/release/modelrelay-server /out/modelrelay-server \
     && install -m 0755 target/release/modelrelay-worker /out/modelrelay-worker \
