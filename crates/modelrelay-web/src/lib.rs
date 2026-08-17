@@ -7,6 +7,8 @@
 
 /// Shared HTML templates usable by both the OSS UI and the commercial cloud crate.
 pub mod templates;
+pub mod content;
+pub mod integrate_renderer;
 
 mod routes;
 
